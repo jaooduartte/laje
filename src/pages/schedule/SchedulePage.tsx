@@ -7,6 +7,7 @@ import { useSports } from "@/hooks/useSports";
 import { useTeams } from "@/hooks/useTeams";
 import { useChampionships } from "@/hooks/useChampionships";
 import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
+import { useChampionshipBracketHistory } from "@/hooks/useChampionshipBracketHistory";
 import { useChampionshipSeasonYears } from "@/hooks/useChampionshipSeasonYears";
 import { useChampionshipSeasonSportRemovals } from "@/hooks/useChampionshipSeasonSportRemovals";
 import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividualEvents";
@@ -17,6 +18,7 @@ import { resolveIndividualSportIds } from "@/lib/individualEvents";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
   isTeamDivision,
+  resolveChampionshipBracketEditionSportSelection,
   resolveBracketGroupFilterOptions,
   resolveChampionshipBracketGroupStageOptions,
   resolveChampionshipGroupLabel,
@@ -97,6 +99,13 @@ export function SchedulePage() {
     seasonYear: correctedYearFilter,
     realtimeEnabled: false,
   });
+  const { championshipBracketSeasonViews, loading: championshipBracketHistoryLoading } =
+    useChampionshipBracketHistory({
+      championshipId: selectedChampionshipId,
+      seasonYears: availableSeasonYears,
+      enabled: correctedYearFilter == null && availableSeasonYears.length > 0,
+      realtimeEnabled: false,
+    });
   const { sports, championshipSports: allChampionshipSports } = useSports({
     championshipId: selectedChampionshipId,
     realtimeEnabled: false,
@@ -113,15 +122,49 @@ export function SchedulePage() {
     );
   }, [allChampionshipSports, removedSportIds]);
   const visibleSports = useMemo(() => {
-    if (removedSportRemovalsLoading) {
+    if (
+      removedSportRemovalsLoading ||
+      (correctedYearFilter == null && championshipBracketHistoryLoading)
+    ) {
       return [];
     }
 
-    const activeSportIds = new Set(
+    const championshipSportIds = new Set(
       championshipSports.map((championshipSport) => championshipSport.sport_id),
     );
-    return sports.filter((sport) => activeSportIds.has(sport.id));
-  }, [championshipSports, removedSportRemovalsLoading, sports]);
+    const bracketViews =
+      correctedYearFilter == null
+        ? [
+            championshipBracketView,
+            ...championshipBracketSeasonViews.map(
+              (seasonView) => seasonView.championship_bracket_view,
+            ),
+          ]
+        : [championshipBracketView];
+    const bracketSportSelections = bracketViews.map(
+      resolveChampionshipBracketEditionSportSelection,
+    );
+    const activeBracketSportIds = new Set(
+      bracketSportSelections.flatMap((selection) => [...selection.sportIds]),
+    );
+    const hasConfiguredEditionSports = bracketSportSelections.some(
+      (selection) => selection.hasConfiguredSelection,
+    );
+
+    return sports.filter(
+      (sport) =>
+        championshipSportIds.has(sport.id) &&
+        (!hasConfiguredEditionSports || activeBracketSportIds.has(sport.id)),
+    );
+  }, [
+    championshipBracketHistoryLoading,
+    championshipBracketSeasonViews,
+    championshipBracketView,
+    championshipSports,
+    correctedYearFilter,
+    removedSportRemovalsLoading,
+    sports,
+  ]);
   const individualSportIds = useMemo(
     () => resolveIndividualSportIds(visibleSports),
     [visibleSports],

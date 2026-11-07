@@ -177,6 +177,7 @@ import {
   isTeamDivision,
   resolveBracketGroupFilterOptions,
   resolveChampionshipBracketGroupStageOptions,
+  resolveChampionshipBracketEditionSportSelection,
   resolveChampionshipGroupLabel,
   resolveDisplayedMatchQueueLabel,
   resolveDisplayedMatchQueuePosition,
@@ -205,6 +206,7 @@ import {
 } from "@/components/ui/app-pagination-controls";
 import { SportFilter } from "@/components/SportFilter";
 import {
+  reconcileTieBreakDraftTeamOrders,
   resolveIsTieBreakTeamOrderReady,
   resolveNormalizedTieBreakTeamOrder,
 } from "@/components/admin/adminMatchesTieBreak.utils";
@@ -1831,6 +1833,7 @@ export function AdminMatches({
   const [pendingTieBreakContexts, setPendingTieBreakContexts] = useState<
     ChampionshipBracketTieBreakPendingContext[]
   >([]);
+  const pendingTieBreakDraftEditionIdRef = useRef<string | null>(null);
   const [loadingPendingTieBreakContexts, setLoadingPendingTieBreakContexts] = useState(false);
   const [showTieBreakDialog, setShowTieBreakDialog] = useState(false);
   const [savingTieBreakResolutions, setSavingTieBreakResolutions] = useState(false);
@@ -2000,15 +2003,28 @@ export function AdminMatches({
 
   const availableSports = useMemo(() => {
     const sportsById = new Map<string, Sport>();
+    const editionSportSelection = championshipBracketView.edition
+      ? resolveChampionshipBracketEditionSportSelection(championshipBracketView)
+      : null;
+    const hasConfiguredEditionSports = editionSportSelection?.hasConfiguredSelection ?? false;
 
     championshipSports.forEach((championshipSport) => {
-      if (championshipSport.sports && !sportsById.has(championshipSport.sport_id)) {
+      if (
+        championshipSport.sports &&
+        (!hasConfiguredEditionSports ||
+          editionSportSelection?.sportIds.has(championshipSport.sport_id)) &&
+        !sportsById.has(championshipSport.sport_id)
+      ) {
         sportsById.set(championshipSport.sport_id, championshipSport.sports);
       }
     });
 
     matches.forEach((match) => {
-      if (match.sports && !sportsById.has(match.sports.id)) {
+      if (
+        match.sports &&
+        (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(match.sport_id)) &&
+        !sportsById.has(match.sports.id)
+      ) {
         sportsById.set(match.sports.id, match.sports);
       }
     });
@@ -2016,7 +2032,7 @@ export function AdminMatches({
     return [...sportsById.values()].sort((firstSport, secondSport) =>
       firstSport.name.localeCompare(secondSport.name),
     );
-  }, [championshipSports, matches]);
+  }, [championshipBracketView, championshipSports, matches]);
 
   const individualSportIds = useMemo(() => {
     return championshipSports
@@ -2378,7 +2394,10 @@ export function AdminMatches({
       return;
     }
 
-    if (!championshipBracketView.edition?.id) {
+    const editionId = championshipBracketView.edition?.id;
+
+    if (!editionId) {
+      pendingTieBreakDraftEditionIdRef.current = null;
       setPendingTieBreakContexts([]);
       setDraftTieBreakTeamIdsByContextKey({});
       setSavingTieBreakResolutionByContextKey({});
@@ -2390,7 +2409,7 @@ export function AdminMatches({
 
     const response = await fetchChampionshipBracketPendingTieBreaks(
       selectedChampionship.id,
-      championshipBracketView.edition.id,
+      editionId,
     );
 
     setLoadingPendingTieBreakContexts(false);
@@ -2401,13 +2420,24 @@ export function AdminMatches({
     }
 
     setPendingTieBreakContexts(response.data);
-    setSavingTieBreakResolutionByContextKey({});
-    setDraftTieBreakTeamIdsByContextKey(() => {
-      return response.data.reduce<Record<string, string[]>>((carry, pendingTieBreakContext) => {
-        carry[pendingTieBreakContext.context_key] = [];
-        return carry;
-      }, {});
-    });
+    const shouldPreserveCurrentEditionDrafts =
+      pendingTieBreakDraftEditionIdRef.current === editionId;
+    pendingTieBreakDraftEditionIdRef.current = editionId;
+    setSavingTieBreakResolutionByContextKey((currentSavingState) =>
+      shouldPreserveCurrentEditionDrafts
+        ? response.data.reduce<Record<string, boolean>>((carry, pendingTieBreakContext) => {
+            carry[pendingTieBreakContext.context_key] =
+              currentSavingState[pendingTieBreakContext.context_key] ?? false;
+            return carry;
+          }, {})
+        : {},
+    );
+    setDraftTieBreakTeamIdsByContextKey((currentDraftTeamIdsByContextKey) =>
+      reconcileTieBreakDraftTeamOrders(
+        response.data,
+        shouldPreserveCurrentEditionDrafts ? currentDraftTeamIdsByContextKey : {},
+      ),
+    );
   }, [
     championshipBracketView.edition?.id,
     externalRefetchPendingTieBreaks,
@@ -2507,18 +2537,31 @@ export function AdminMatches({
     }
 
     const contexts = externalPendingTieBreakContexts ?? [];
+    const editionId = externalPendingTieBreakEditionId ?? null;
+    const shouldPreserveCurrentEditionDrafts =
+      pendingTieBreakDraftEditionIdRef.current === editionId;
+    pendingTieBreakDraftEditionIdRef.current = editionId;
     setPendingTieBreakContexts(contexts);
     setLoadingPendingTieBreakContexts(externalLoadingPendingTieBreaks);
-    setSavingTieBreakResolutionByContextKey({});
-    setDraftTieBreakTeamIdsByContextKey(() => {
-      return contexts.reduce<Record<string, string[]>>((carry, pendingTieBreakContext) => {
-        carry[pendingTieBreakContext.context_key] = [];
-        return carry;
-      }, {});
-    });
+    setSavingTieBreakResolutionByContextKey((currentSavingState) =>
+      shouldPreserveCurrentEditionDrafts
+        ? contexts.reduce<Record<string, boolean>>((carry, pendingTieBreakContext) => {
+            carry[pendingTieBreakContext.context_key] =
+              currentSavingState[pendingTieBreakContext.context_key] ?? false;
+            return carry;
+          }, {})
+        : {},
+    );
+    setDraftTieBreakTeamIdsByContextKey((currentDraftTeamIdsByContextKey) =>
+      reconcileTieBreakDraftTeamOrders(
+        contexts,
+        shouldPreserveCurrentEditionDrafts ? currentDraftTeamIdsByContextKey : {},
+      ),
+    );
   }, [
     externalLoadingPendingTieBreaks,
     externalPendingTieBreakContexts,
+    externalPendingTieBreakEditionId,
     shouldUseExternalPendingTieBreaks,
   ]);
 
@@ -7329,26 +7372,34 @@ export function AdminMatches({
       return;
     }
 
-    if (!isTieBreakResolutionReady) {
+    const tieBreakResolutions = pendingTieBreakContexts.map((pendingTieBreakContext) => ({
+      pendingTieBreakContext,
+      teamIds: resolveNormalizedTieBreakTeamOrder(
+        pendingTieBreakContext,
+        draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
+      ),
+    }));
+
+    if (
+      tieBreakResolutions.some(
+        ({ pendingTieBreakContext, teamIds }) =>
+          !resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, teamIds),
+      )
+    ) {
       toast.error("Defina a ordem completa dos desempates pendentes antes de confirmar.");
       return;
     }
 
     setSavingTieBreakResolutions(true);
 
-    for (const pendingTieBreakContext of pendingTieBreakContexts) {
-      const orderedTeamIds = resolveNormalizedTieBreakTeamOrder(
-        pendingTieBreakContext,
-        draftTieBreakTeamIdsByContextKey[pendingTieBreakContext.context_key],
-      );
-
+    for (const { pendingTieBreakContext, teamIds } of tieBreakResolutions) {
       const response = await saveChampionshipBracketTieBreakResolution({
         context_key: pendingTieBreakContext.context_key,
         competition_id: pendingTieBreakContext.competition_id,
         context_type: pendingTieBreakContext.context_type,
         group_id: pendingTieBreakContext.group_id,
         qualification_rank: pendingTieBreakContext.qualification_rank,
-        team_ids: orderedTeamIds,
+        team_ids: teamIds,
       });
 
       if (response.error) {

@@ -9,17 +9,14 @@ import {
   TeamDivision,
 } from "@/lib/enums";
 
-type ChampionshipBracketLegacyDraftOverrides =
-  Partial<ChampionshipBracketWizardDraftFormValues> & {
-    schedule_periods?: unknown[];
-    competition_period_availability?: unknown[];
-    team_competition_availability?: unknown[];
-  };
+type ChampionshipBracketLegacyDraftOverrides = Partial<ChampionshipBracketWizardDraftFormValues> & {
+  schedule_periods?: unknown[];
+  competition_period_availability?: unknown[];
+  team_competition_availability?: unknown[];
+};
 
 function buildPlacementPoints(count = 20) {
-  const defaults = [
-    24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
-  ];
+  const defaults = [24, 22, 20, 18, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
   return Array.from({ length: count }, (_, index) => ({
     placement: index + 1,
     points: defaults[index] ?? null,
@@ -93,9 +90,7 @@ function buildDraft(
   return {
     current_step_index: overrides.current_step_index ?? 0,
     highest_unlocked_step_index:
-      overrides.highest_unlocked_step_index ??
-      overrides.current_step_index ??
-      0,
+      overrides.highest_unlocked_step_index ?? overrides.current_step_index ?? 0,
     season_settings: overrides.season_settings ?? {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
       division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
@@ -105,23 +100,17 @@ function buildDraft(
     },
     enabled_sport_ids: overrides.enabled_sport_ids ?? [],
     selected_team_ids: overrides.selected_team_ids ?? [],
-    selected_sport_ids_by_team_id:
-      overrides.selected_sport_ids_by_team_id ?? {},
+    selected_sport_ids_by_team_id: overrides.selected_sport_ids_by_team_id ?? {},
     show_estimated_start_time_on_cards_by_sport_id:
       overrides.show_estimated_start_time_on_cards_by_sport_id ?? {},
-    selected_competition_keys_by_team_id:
-      overrides.selected_competition_keys_by_team_id ?? {},
-    should_apply_modalities_to_all_teams:
-      overrides.should_apply_modalities_to_all_teams ?? false,
-    should_apply_naipes_to_all_teams:
-      overrides.should_apply_naipes_to_all_teams ?? false,
+    selected_competition_keys_by_team_id: overrides.selected_competition_keys_by_team_id ?? {},
+    should_apply_modalities_to_all_teams: overrides.should_apply_modalities_to_all_teams ?? false,
+    should_apply_naipes_to_all_teams: overrides.should_apply_naipes_to_all_teams ?? false,
     should_replicate_previous_schedule_day:
       overrides.should_replicate_previous_schedule_day ?? false,
     competition_config_by_key: overrides.competition_config_by_key ?? {},
-    group_assignments_by_competition_key:
-      overrides.group_assignments_by_competition_key ?? {},
-    group_order_by_competition_key:
-      overrides.group_order_by_competition_key ?? {},
+    group_assignments_by_competition_key: overrides.group_assignments_by_competition_key ?? {},
+    group_order_by_competition_key: overrides.group_order_by_competition_key ?? {},
     schedule_days: overrides.schedule_days ?? [],
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
@@ -244,6 +233,28 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     expect(dto?.bindToSave().current_step_index).toBe(11);
   });
 
+  it("restaura snapshots antigos armazenados como string JSONB", () => {
+    const storedDraft = {
+      ...buildDraft({ current_step_index: 6, selected_team_ids: ["team-1"] }),
+      step_flow_version: 2,
+    };
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify(JSON.stringify(storedDraft)),
+    );
+
+    expect(dto?.bindToSave().current_step_index).toBe(6);
+    expect(dto?.bindToSave().selected_team_ids).toEqual(["team-1"]);
+  });
+
+  it("rejeita snapshots que não sejam objetos JSON", () => {
+    expect(
+      ChampionshipBracketWizardDraftDTO.fromStorageValue(JSON.stringify("invalid draft")),
+    ).toBeNull();
+    expect(
+      ChampionshipBracketWizardDraftDTO.fromStorageValue(JSON.stringify(["invalid draft"])),
+    ).toBeNull();
+  });
+
   it("normaliza modo de numeração ausente em draft legado para COURT", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
@@ -272,10 +283,9 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    expect(
-      dto?.bindToSave().competition_config_by_key[competitionKey]
-        ?.knockout_pairing_mode,
-    ).toBe("LINEAR");
+    expect(dto?.bindToSave().competition_config_by_key[competitionKey]?.knockout_pairing_mode).toBe(
+      "LINEAR",
+    );
   });
 
   it("preserva CLASSIC_SEEDED ao carregar e salvar um draft", () => {
@@ -296,10 +306,9 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    expect(
-      dto?.bindToSave().competition_config_by_key[competitionKey]
-        ?.knockout_pairing_mode,
-    ).toBe("CLASSIC_SEEDED");
+    expect(dto?.bindToSave().competition_config_by_key[competitionKey]?.knockout_pairing_mode).toBe(
+      "CLASSIC_SEEDED",
+    );
   });
 
   it("preserva modo de numeração SPORT_NAIPE ao carregar e salvar", () => {
@@ -344,8 +353,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    const savedCourt =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+    const savedCourt = dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
 
     expect(savedCourt?.sport_ids).toEqual(["sport-1"]);
 
@@ -386,8 +394,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -414,8 +421,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toBeNull();
   });
@@ -427,8 +433,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
         step_flow_version: 2,
         season_settings: {
           division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
-          division_settlement_mode:
-            ChampionshipSeasonDivisionSettlementMode.NONE,
+          division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
           principal_slots_count: null,
           principal_relegation_count: null,
           access_promotion_count: null,
@@ -445,8 +450,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -474,8 +478,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -650,8 +653,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -680,8 +682,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -710,8 +711,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     );
 
     const savedPreference =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]
-        ?.sport_preference;
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0]?.sport_preference;
 
     expect(savedPreference).toEqual({
       preferred_sport_id: "sport-1",
@@ -733,8 +733,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    const savedCourt =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+    const savedCourt = dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
 
     expect(savedCourt?.sport_match_targets).toEqual([]);
   });
@@ -785,6 +784,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
           expires_at: "2026-08-20T03:15:00.000Z",
           is_valid_for_creation: true,
           generated_at: "2026-08-10T03:15:00.000Z",
+          preview_match_count: 12,
           result: {
             ok: true,
             message: "Prévia pronta",
@@ -825,6 +825,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       expires_at: "2026-08-20T03:15:00.000Z",
       is_valid_for_creation: true,
       generated_at: "2026-08-10T03:15:00.000Z",
+      preview_match_count: 12,
       result: null,
     });
   });
@@ -918,8 +919,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    const savedCourt =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+    const savedCourt = dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
 
     expect(savedCourt?.sport_match_targets).toEqual([
       {
@@ -958,8 +958,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       }),
     );
 
-    const savedCourt =
-      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+    const savedCourt = dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
 
     expect(savedCourt?.sport_match_targets).toEqual([
       {
@@ -970,6 +969,49 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       {
         sport_id: "sport-2",
         planned_match_count: 4,
+        planning_mode: "MANUAL",
+      },
+    ]);
+  });
+
+  it("preserva metas zeradas quando o modo foi escolhido explicitamente", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportIds: ["sport-1", "sport-2"],
+          sportMatchTargets: [
+            {
+              sport_id: "sport-1",
+              planned_match_count: 0,
+              planning_mode: "AUTO",
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 0,
+              planning_mode: "MANUAL",
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 0,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const savedCourt = dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_match_targets).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 0,
+        planning_mode: "AUTO",
+      },
+      {
+        sport_id: "sport-2",
+        planned_match_count: 0,
         planning_mode: "MANUAL",
       },
     ]);

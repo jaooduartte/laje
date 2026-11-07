@@ -11,19 +11,18 @@ export function resolveExactPreviewCacheFromJob({
   localPayloadSignature,
   matchNumberingMode,
   previousResult,
+  previousMatchCount,
   scheduleDays,
 }: {
   job: ChampionshipBracketPreviewJob;
   localPayloadSignature: string;
   matchNumberingMode: ChampionshipBracketMatchNumberingMode;
   previousResult: ChampionshipBracketPreviewResult | null;
+  previousMatchCount: number;
   scheduleDays: ChampionshipBracketScheduleDayInput[];
 }): ChampionshipBracketExactPreviewCache {
   const availableDays = new Map(
-    (previousResult?.days ?? []).map((previewDay) => [
-      previewDay.date,
-      previewDay,
-    ]),
+    (previousResult?.days ?? []).map((previewDay) => [previewDay.date, previewDay]),
   );
 
   return {
@@ -45,13 +44,18 @@ export function resolveExactPreviewCacheFromJob({
     events: job.events,
     is_valid_for_creation: job.is_valid_for_creation,
     generated_at: job.completed_at ?? job.created_at,
+    preview_match_count:
+      job.summary?.total_matches ??
+      (previousMatchCount > 0 ? previousMatchCount : null) ??
+      previousResult?.summary?.total_matches ??
+      0,
     result: {
       ok: job.status == "COMPLETED",
       message: job.error_message,
       server_payload_signature: job.payload_signature,
       generation_signature: job.generation_signature,
       match_numbering_mode: matchNumberingMode,
-      summary: job.summary,
+      summary: job.summary ?? previousResult?.summary ?? null,
       days: scheduleDays.map(
         (scheduleDay) =>
           availableDays.get(scheduleDay.date) ?? {
@@ -68,5 +72,36 @@ export function resolveExactPreviewCacheFromJob({
       ),
       diagnostics: job.diagnostics,
     },
+  };
+}
+
+export function resolveExactPreviewResultShell({
+  cache,
+  matchNumberingMode,
+  scheduleDays,
+}: {
+  cache: ChampionshipBracketExactPreviewCache;
+  matchNumberingMode: ChampionshipBracketMatchNumberingMode;
+  scheduleDays: ChampionshipBracketScheduleDayInput[];
+}): ChampionshipBracketPreviewResult {
+  return {
+    ok: cache.status == "COMPLETED" || cache.status == "CONSUMED",
+    message: null,
+    server_payload_signature: cache.server_payload_signature,
+    generation_signature: cache.generation_signature || null,
+    match_numbering_mode: matchNumberingMode,
+    summary: null,
+    days: scheduleDays.map((scheduleDay) => ({
+      date: scheduleDay.date,
+      start_time: scheduleDay.start_time,
+      end_time: scheduleDay.end_time,
+      breaks: [],
+      occupied_minutes: 0,
+      available_minutes: 0,
+      utilization_percentage: 0,
+      free_windows: 0,
+      locations: [],
+    })),
+    diagnostics: [],
   };
 }

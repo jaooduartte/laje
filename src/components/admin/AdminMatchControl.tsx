@@ -94,6 +94,7 @@ import {
   TEAM_DIVISION_LABELS,
   resolveDisplayedMatchQueueLabel,
   resolveBracketGroupFilterOptions,
+  resolveChampionshipBracketEditionSportSelection,
   resolveMatchNaipeBadgeTone,
   resolveMatchNaipeLabel,
   resolveMatchPenaltyShootoutSummary,
@@ -1083,26 +1084,48 @@ export function AdminMatchControl({
     });
   }, [matchBracketContextByMatchId, matches]);
 
+  const editionSportSelection = useMemo(
+    () =>
+      championshipBracketView.edition
+        ? resolveChampionshipBracketEditionSportSelection(championshipBracketView)
+        : null,
+    [championshipBracketView],
+  );
+  const hasConfiguredEditionSports = editionSportSelection?.hasConfiguredSelection ?? false;
+
   const individualSportIds = useMemo(() => {
     return championshipSports
       .filter((championshipSport) => {
         const sportCode = resolveSportCode(championshipSport.sports?.name ?? "");
-        return sportCode == "ATLETISMO" || sportCode == "NATACAO";
+        return (
+          (sportCode == "ATLETISMO" || sportCode == "NATACAO") &&
+          (!hasConfiguredEditionSports ||
+            editionSportSelection?.sportIds.has(championshipSport.sport_id))
+        );
       })
       .map((championshipSport) => championshipSport.sport_id);
-  }, [championshipSports]);
+  }, [championshipSports, editionSportSelection, hasConfiguredEditionSports]);
 
   const controlSports = useMemo(() => {
     const sportById = new Map<string, Sport>();
 
     championshipSports.forEach((championshipSport) => {
-      if (championshipSport.sports && !sportById.has(championshipSport.sports.id)) {
+      if (
+        championshipSport.sports &&
+        (!hasConfiguredEditionSports ||
+          editionSportSelection?.sportIds.has(championshipSport.sport_id)) &&
+        !sportById.has(championshipSport.sports.id)
+      ) {
         sportById.set(championshipSport.sports.id, championshipSport.sports);
       }
     });
 
     matches.forEach((match) => {
-      if (match.sports && !sportById.has(match.sports.id)) {
+      if (
+        match.sports &&
+        (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(match.sport_id)) &&
+        !sportById.has(match.sports.id)
+      ) {
         sportById.set(match.sports.id, match.sports);
       }
     });
@@ -1110,7 +1133,7 @@ export function AdminMatchControl({
     return [...sportById.values()].sort((leftSport, rightSport) =>
       leftSport.name.localeCompare(rightSport.name),
     );
-  }, [championshipSports, matches]);
+  }, [championshipSports, editionSportSelection, hasConfiguredEditionSports, matches]);
 
   const {
     sessions: individualSessions,
@@ -3828,6 +3851,11 @@ export function AdminMatchControl({
                             <AppBadge tone={resolveMatchNaipeBadgeTone(String(match.naipe))}>
                               {resolveMatchNaipeLabel(String(match.naipe))}
                             </AppBadge>
+                            {match.division ? (
+                              <AppBadge tone={TEAM_DIVISION_BADGE_TONES[match.division]}>
+                                {TEAM_DIVISION_LABELS[match.division]}
+                              </AppBadge>
+                            ) : null}
                             {matchBracketContextByMatchId[match.id] ? (
                               <AppBadge tone={AppBadgeTone.NEUTRAL}>
                                 {matchBracketContextByMatchId[match.id]?.badgeLabel}
@@ -4346,6 +4374,14 @@ export function AdminMatchControl({
                           >
                             {resolveMatchNaipeLabel(String(match.naipe))}
                           </AppBadge>
+                          {match.division ? (
+                            <AppBadge
+                              tone={TEAM_DIVISION_BADGE_TONES[match.division]}
+                              className="w-fit"
+                            >
+                              {TEAM_DIVISION_LABELS[match.division]}
+                            </AppBadge>
+                          ) : null}
                           {matchBracketContext ? (
                             <AppBadge tone={AppBadgeTone.NEUTRAL} className="w-fit">
                               {matchBracketContext.badgeLabel}

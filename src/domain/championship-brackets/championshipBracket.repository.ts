@@ -467,11 +467,17 @@ export async function createChampionshipBracketFromPreviewJob(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
   job_id: string,
+  showEstimatedStartTimeOnCardsBySportId: Record<string, boolean> = {},
 ): Promise<{ data: string | null; error: Error | null }> {
   if (isAwsBackendEnabled()) {
     try {
       return {
-        data: await createAwsBracketFromPreviewJob(championship_id, job_id, payload),
+        data: await createAwsBracketFromPreviewJob(
+          championship_id,
+          job_id,
+          payload,
+          showEstimatedStartTimeOnCardsBySportId,
+        ),
         error: null,
       };
     } catch (error) {
@@ -787,6 +793,13 @@ export async function generateChampionshipKnockout(
   championship_id: string,
   bracket_edition_id?: string,
 ) {
+  if (isAwsBackendEnabled()) {
+    return invokeAwsBracketOperation<string>("knockout-generate-edition", {
+      championshipId: championship_id,
+      editionId: bracket_edition_id ?? null,
+    });
+  }
+
   return supabase.rpc("generate_championship_knockout", {
     _championship_id: championship_id,
     _bracket_edition_id: bracket_edition_id ?? null,
@@ -1484,16 +1497,37 @@ export async function getBracketLocationSportPriorities(
   let prioritiesResponse: { data: unknown; error: Error | null };
   let bracketMatchesResponse: { data: unknown; error: Error | null };
   if (isAwsBackendEnabled()) {
-    const aws = await invokeAwsBracketOperation<{ days: unknown[]; priorities: unknown[]; bracketMatches: unknown[] }>(
-      "location-sport-source",
-      { editionId: bracketEditionId },
-    );
+    const aws = await invokeAwsBracketOperation<{
+      days: unknown[];
+      priorities: unknown[];
+      bracketMatches: unknown[];
+    }>("location-sport-source", { editionId: bracketEditionId });
     if (aws.error) return { data: [], error: aws.error };
     daysResponse = { data: aws.data?.days ?? [], error: null };
     prioritiesResponse = { data: aws.data?.priorities ?? [], error: null };
     bracketMatchesResponse = { data: aws.data?.bracketMatches ?? [], error: null };
   } else {
-    const [days, priorities, bracketMatches] = await Promise.all([      supabase        .from("championship_bracket_days")        .select(          `          id,          event_date,          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              preferred_sport_id,              championship_bracket_court_sports (                sport_id,                preferred_naipe,                preferred_division,                sequence_mode              )            )          )        `,        )        .eq("bracket_edition_id", bracketEditionId)        .order("event_date", { ascending: true }),      supabase        .from("championship_bracket_location_sport_priorities")        .select("location_group_id, sport_id, priority_mode")        .eq("bracket_edition_id", bracketEditionId),      supabase        .from("championship_bracket_matches")        .select(          `          match_id,          matches!championship_bracket_matches_match_id_fkey (            scheduled_date,            sport_id          )        `,        )        .eq("bracket_edition_id", bracketEditionId)        .not("match_id", "is", null),    ]);    daysResponse = { data: days.data, error: days.error };
+    const [days, priorities, bracketMatches] = await Promise.all([
+      supabase
+        .from("championship_bracket_days")
+        .select(
+          `          id,          event_date,          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              preferred_sport_id,              championship_bracket_court_sports (                sport_id,                preferred_naipe,                preferred_division,                sequence_mode              )            )          )        `,
+        )
+        .eq("bracket_edition_id", bracketEditionId)
+        .order("event_date", { ascending: true }),
+      supabase
+        .from("championship_bracket_location_sport_priorities")
+        .select("location_group_id, sport_id, priority_mode")
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase
+        .from("championship_bracket_matches")
+        .select(
+          `          match_id,          matches!championship_bracket_matches_match_id_fkey (            scheduled_date,            sport_id          )        `,
+        )
+        .eq("bracket_edition_id", bracketEditionId)
+        .not("match_id", "is", null),
+    ]);
+    daysResponse = { data: days.data, error: days.error };
     prioritiesResponse = { data: priorities.data, error: priorities.error };
     bracketMatchesResponse = { data: bracketMatches.data, error: bracketMatches.error };
   }
@@ -1736,17 +1770,38 @@ export async function getBracketKnockoutCourtPriorities(
   let prioritiesResponse: { data: unknown; error: Error | null };
   let finalProgramResponse: { data: unknown; error: Error | null };
   if (isAwsBackendEnabled()) {
-    const aws = await invokeAwsBracketOperation<{ days: unknown[]; competitions: unknown[]; priorities: unknown[]; finalProgram: unknown[] }>(
-      "knockout-court-source",
-      { editionId: bracketEditionId },
-    );
+    const aws = await invokeAwsBracketOperation<{
+      days: unknown[];
+      competitions: unknown[];
+      priorities: unknown[];
+      finalProgram: unknown[];
+    }>("knockout-court-source", { editionId: bracketEditionId });
     if (aws.error) return { data: [], error: aws.error };
     daysResponse = { data: aws.data?.days ?? [], error: null };
     competitionsResponse = { data: aws.data?.competitions ?? [], error: null };
     prioritiesResponse = { data: aws.data?.priorities ?? [], error: null };
     finalProgramResponse = { data: aws.data?.finalProgram ?? [], error: null };
   } else {
-    const [days, competitions, priorities, finalProgram] =      await Promise.all([        supabase          .from("championship_bracket_days")          .select(            `          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              championship_bracket_court_sports (                sport_id              )            )          )        `,          )          .eq("bracket_edition_id", bracketEditionId),        supabase          .from("championship_bracket_competitions")          .select("sport_id, division")          .eq("bracket_edition_id", bracketEditionId),        supabase          .from("championship_bracket_knockout_court_priorities")          .select("sport_id, phase, division_scope, location_group_id, court_group_id")          .eq("bracket_edition_id", bracketEditionId),        supabase.rpc("get_admin_championship_knockout_final_program_schedule", {          _bracket_edition_id: bracketEditionId,        }),      ]);    daysResponse = { data: days.data, error: days.error };
+    const [days, competitions, priorities, finalProgram] = await Promise.all([
+      supabase
+        .from("championship_bracket_days")
+        .select(
+          `          championship_bracket_locations (            id,            name,            position,            location_group_id,            championship_bracket_courts (              id,              name,              position,              court_group_id,              championship_bracket_court_sports (                sport_id              )            )          )        `,
+        )
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase
+        .from("championship_bracket_competitions")
+        .select("sport_id, division")
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase
+        .from("championship_bracket_knockout_court_priorities")
+        .select("sport_id, phase, division_scope, location_group_id, court_group_id")
+        .eq("bracket_edition_id", bracketEditionId),
+      supabase.rpc("get_admin_championship_knockout_final_program_schedule", {
+        _bracket_edition_id: bracketEditionId,
+      }),
+    ]);
+    daysResponse = { data: days.data, error: days.error };
     competitionsResponse = { data: competitions.data, error: competitions.error };
     prioritiesResponse = { data: priorities.data, error: priorities.error };
     finalProgramResponse = { data: finalProgram.data, error: finalProgram.error };
@@ -1844,7 +1899,11 @@ export async function getBracketKnockoutCourtPriorities(
   });
 
   const orderedSportIds = [
-    ...new Set(((competitionsResponse.data as Array<{ sport_id: string }> | null) ?? []).map((competition) => competition.sport_id)),
+    ...new Set(
+      ((competitionsResponse.data as Array<{ sport_id: string }> | null) ?? []).map(
+        (competition) => competition.sport_id,
+      ),
+    ),
   ]
     .filter((sportId) => (courtOptionsBySportId.get(sportId)?.length ?? 0) > 0)
     .sort((leftSportId, rightSportId) => leftSportId.localeCompare(rightSportId));

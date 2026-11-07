@@ -98,6 +98,7 @@ type FetchMatchesOptions = {
   showLoading?: boolean;
   showFetching?: boolean;
   refreshOperationalContext?: boolean;
+  prefetchedMatchResult?: { matches: Match[]; total: number };
 };
 
 type SupabaseMatchQueryChain<TQuery> = {
@@ -252,6 +253,7 @@ export function useMatches({
   const isFetchingMatchesRef = useRef(false);
   const hasQueuedMatchesRefetchRef = useRef(false);
   const shouldRefreshOperationalContextOnQueuedFetchRef = useRef(false);
+  const resultRulesByChampionshipAndSportRef = useRef<Record<string, Match["result_rule"]>>({});
   const latestFetchMatchesRef = useRef<(options?: FetchMatchesOptions) => Promise<void>>(
     async () => {},
   );
@@ -262,6 +264,7 @@ export function useMatches({
       showLoading = false,
       showFetching = false,
       refreshOperationalContext = true,
+      prefetchedMatchResult,
     }: FetchMatchesOptions = {}) => {
       if (!enabled) {
         setLoading(false);
@@ -284,6 +287,7 @@ export function useMatches({
         isFetchingMatchesRef.current = false;
         hasQueuedMatchesRefetchRef.current = false;
         shouldRefreshOperationalContextOnQueuedFetchRef.current = false;
+        resultRulesByChampionshipAndSportRef.current = {};
         return;
       }
 
@@ -455,28 +459,33 @@ export function useMatches({
         const shouldUseDedicatedSportsCore = isDedicatedSportsCoreEnabled();
 
         if (shouldUseDedicatedSportsCore) {
-          const apiOrder = sortMode == "SCHEDULED" ? "asc" : "desc";
-          const apiSort = sortMode == "SCHEDULED" ? "queuePosition" : "scheduledDate";
-          const apiResult = await listSportsCoreMatches({
-            ...(championshipId ? { championshipId } : {}),
-            ...(typeof seasonYear == "number" ? { seasonYear } : {}),
-            ...(normalizedStatuses.length > 0 ? { statuses: normalizedStatuses } : {}),
-            ...(sportId ? { sportId } : {}),
-            ...(teamId ? { teamId } : {}),
-            ...(naipe ? { naipe } : {}),
-            ...(division !== undefined ? { division } : {}),
-            ...(typeof groupNumber == "number" ? { groupNumber } : {}),
-            ...(location ? { location } : {}),
-            ...(courtName ? { courtName } : {}),
-            ...(hasExplicitMatchIds ? { matchIds: normalizedMatchIds } : {}),
-            includePendingManualRelocation,
-            ...(isPaginated && typeof page == "number" ? { page } : {}),
-            ...(isPaginated && typeof itemsPerPage == "number" ? { pageSize: itemsPerPage } : {}),
-            sort: apiSort,
-            order: apiOrder,
-          });
-          matchRows = apiResult.matches;
-          resolvedTotalCount = apiResult.total;
+          if (prefetchedMatchResult !== undefined) {
+            matchRows = prefetchedMatchResult.matches;
+            resolvedTotalCount = prefetchedMatchResult.total;
+          } else {
+            const apiOrder = sortMode == "SCHEDULED" ? "asc" : "desc";
+            const apiSort = sortMode == "SCHEDULED" ? "queuePosition" : "scheduledDate";
+            const apiResult = await listSportsCoreMatches({
+              ...(championshipId ? { championshipId } : {}),
+              ...(typeof seasonYear == "number" ? { seasonYear } : {}),
+              ...(normalizedStatuses.length > 0 ? { statuses: normalizedStatuses } : {}),
+              ...(sportId ? { sportId } : {}),
+              ...(teamId ? { teamId } : {}),
+              ...(naipe ? { naipe } : {}),
+              ...(division !== undefined ? { division } : {}),
+              ...(typeof groupNumber == "number" ? { groupNumber } : {}),
+              ...(location ? { location } : {}),
+              ...(courtName ? { courtName } : {}),
+              ...(hasExplicitMatchIds ? { matchIds: normalizedMatchIds } : {}),
+              includePendingManualRelocation,
+              ...(isPaginated && typeof page == "number" ? { page } : {}),
+              ...(isPaginated && typeof itemsPerPage == "number" ? { pageSize: itemsPerPage } : {}),
+              sort: apiSort,
+              order: apiOrder,
+            });
+            matchRows = apiResult.matches;
+            resolvedTotalCount = apiResult.total;
+          }
 
           if (includeOperationalContext && refreshOperationalContext) {
             const operationalContextResult = await listSportsCoreMatches({
@@ -699,14 +708,16 @@ export function useMatches({
           const championshipSeasonKeys = [
             ...new Set(matchRows.map((match) => `${match.championship_id}:${match.season_year}`)),
           ];
-          const runtimeContexts = await Promise.all(
-            championshipSeasonKeys.map((key) => {
-              const separatorIndex = key.lastIndexOf(":");
-              const resolvedChampionshipId = key.slice(0, separatorIndex);
-              const resolvedSeasonYear = Number(key.slice(separatorIndex + 1));
-              return getAwsMatchRuntimeContext(resolvedChampionshipId, resolvedSeasonYear);
-            }),
-          );
+          const runtimeContexts = refreshOperationalContext
+            ? await Promise.all(
+                championshipSeasonKeys.map((key) => {
+                  const separatorIndex = key.lastIndexOf(":");
+                  const resolvedChampionshipId = key.slice(0, separatorIndex);
+                  const resolvedSeasonYear = Number(key.slice(separatorIndex + 1));
+                  return getAwsMatchRuntimeContext(resolvedChampionshipId, resolvedSeasonYear);
+                }),
+              )
+            : [];
           const championshipSportsByKey = runtimeContexts
             .flatMap((context) => context.championshipSports)
             .reduce<Record<string, (typeof runtimeContexts)[number]["championshipSports"][number]>>(
@@ -717,6 +728,14 @@ export function useMatches({
               },
               {},
             );
+          if (refreshOperationalContext) {
+            resultRulesByChampionshipAndSportRef.current = Object.fromEntries(
+              Object.entries(championshipSportsByKey).map(([key, championshipSport]) => [
+                key,
+                championshipSport.result_rule,
+              ]),
+            );
+          }
           const championshipSportsForEstimatedStartTimeRows =
             Object.values(championshipSportsByKey);
           const latestChampionshipBracketEditions = runtimeContexts.flatMap((context) =>
@@ -736,15 +755,18 @@ export function useMatches({
               ...match,
               result_rule:
                 match.result_rule ??
-                championshipSportsByKey[`${match.championship_id}:${match.sport_id}`]
-                  ?.result_rule ??
+                resultRulesByChampionshipAndSportRef.current[
+                  `${match.championship_id}:${match.sport_id}`
+                ] ??
                 null,
               match_sets: match.match_sets ?? [],
             })),
           );
-          setOperationalContextMatches(resolvedOperationalContextMatches);
-          setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
-          setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
+          if (refreshOperationalContext) {
+            setOperationalContextMatches(resolvedOperationalContextMatches);
+            setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
+            setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
+          }
           return;
         }
 

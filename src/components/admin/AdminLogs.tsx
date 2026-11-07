@@ -36,6 +36,10 @@ import {
 } from "@/domain/league-events/leagueEvent.constants";
 import { LEAGUE_EVENT_RESERVATION_REQUEST_STATUS_LABELS } from "@/domain/league-events/leagueEventReservation.types";
 import type { AdminActionLog } from "@/lib/types";
+import {
+  resolveAdminLogDataRecord,
+  resolveAdminLogRecordValue,
+} from "@/components/admin/adminLogs.utils";
 import { AppBadge } from "@/components/ui/app-badge";
 import {
   AppPaginationControls,
@@ -390,12 +394,15 @@ function isLeagueEventReservationRequestStatusValue(
   );
 }
 
-function isRecordValue(value: unknown): value is Record<string, unknown> {
-  return typeof value == "object" && value != null && !Array.isArray(value);
+function resolveRecordValue(value: unknown): Record<string, unknown> | null {
+  return resolveAdminLogRecordValue(value);
 }
 
-function resolveRecordValue(value: unknown): Record<string, unknown> | null {
-  return isRecordValue(value) ? value : null;
+function resolveLogRecordValue(
+  log: AdminActionLog,
+  value: unknown,
+): Record<string, unknown> | null {
+  return resolveAdminLogDataRecord(log.resource_table, value);
 }
 
 function resolveResourceLabel(resourceTable: string): string {
@@ -586,8 +593,8 @@ function resolveMatchContextDetails(log: AdminActionLog, teamNameById: TeamNameB
     return [];
   }
 
-  const previousValues = resolveRecordValue(log.old_data) ?? {};
-  const nextValues = resolveRecordValue(log.new_data) ?? {};
+  const previousValues = resolveLogRecordValue(log, log.old_data) ?? {};
+  const nextValues = resolveLogRecordValue(log, log.new_data) ?? {};
 
   const homeTeamId = nextValues.home_team_id ?? previousValues.home_team_id;
   const awayTeamId = nextValues.away_team_id ?? previousValues.away_team_id;
@@ -665,8 +672,8 @@ function resolveChangedFields(log: AdminActionLog, teamNameById: TeamNameById): 
     return [];
   }
 
-  const previousValues = resolveRecordValue(log.old_data) ?? {};
-  const nextValues = resolveRecordValue(log.new_data) ?? {};
+  const previousValues = resolveLogRecordValue(log, log.old_data) ?? {};
+  const nextValues = resolveLogRecordValue(log, log.new_data) ?? {};
   const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])];
   return fieldNames
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
@@ -726,8 +733,8 @@ function shouldHideTemporaryQueueTransitionLog(log: AdminActionLog): boolean {
     return false;
   }
 
-  const previousValues = resolveRecordValue(log.old_data) ?? {};
-  const nextValues = resolveRecordValue(log.new_data) ?? {};
+  const previousValues = resolveLogRecordValue(log, log.old_data) ?? {};
+  const nextValues = resolveLogRecordValue(log, log.new_data) ?? {};
   const fieldNames = [...new Set([...Object.keys(previousValues), ...Object.keys(nextValues)])]
     .filter((fieldName) => !ADMIN_LOG_IGNORED_FIELDS.has(fieldName))
     .filter(
@@ -750,8 +757,8 @@ function resolveLogQueueTransition(log: AdminActionLog): {
   previous: number | null;
   next: number | null;
 } {
-  const previousValues = resolveRecordValue(log.old_data) ?? {};
-  const nextValues = resolveRecordValue(log.new_data) ?? {};
+  const previousValues = resolveLogRecordValue(log, log.old_data) ?? {};
+  const nextValues = resolveLogRecordValue(log, log.new_data) ?? {};
 
   const previousQueuePosition = resolveQueueSlotNumber(previousValues.queue_position);
   const nextQueuePosition = resolveQueueSlotNumber(nextValues.queue_position);
@@ -1057,6 +1064,7 @@ export function AdminLogs() {
               : AdminActionType.UPDATE,
             old_data: resolveRecordValue(log.old_data),
             new_data: resolveRecordValue(log.new_data),
+            metadata: resolveRecordValue(log.metadata),
           })) as AdminActionLog[];
           setLogs(normalizedLogs);
           setTotalCount(response.totalCount);
@@ -1114,6 +1122,7 @@ export function AdminLogs() {
         action_type: isAdminActionType(log.action_type) ? log.action_type : AdminActionType.UPDATE,
         old_data: resolveRecordValue(log.old_data),
         new_data: resolveRecordValue(log.new_data),
+        metadata: resolveRecordValue(log.metadata),
       })) as AdminActionLog[];
 
       setLogs(normalizedLogs);
@@ -1132,7 +1141,7 @@ export function AdminLogs() {
     });
 
     logs.forEach((log) => {
-      if (log.actor_user_id) {
+      if (log.actor_user_id && !userById.has(log.actor_user_id)) {
         userById.set(
           log.actor_user_id,
           log.actor_name ?? log.actor_email ?? "Usuário desconhecido",
@@ -1144,6 +1153,11 @@ export function AdminLogs() {
       .map(([id, label]) => ({ id, label }))
       .sort((firstUser, secondUser) => firstUser.label.localeCompare(secondUser.label));
   }, [availableUsers, logs]);
+
+  const actorNameByUserId = useMemo(
+    () => new Map(availableUsers.map((availableUser) => [availableUser.id, availableUser.label])),
+    [availableUsers],
+  );
 
   const listItems = useMemo(() => {
     const hiddenTemporaryQueueTransitionByKey = new Map<string, AdminActionLog>();
@@ -1206,7 +1220,12 @@ export function AdminLogs() {
         const resolvedDetails =
           detailList.length > 0 ? detailList : [resolveFallbackDetail(normalizedLog)];
         const headline = resolveHeadline(normalizedLog);
-        const actorName = normalizedLog.actor_name ?? "Usuário desconhecido";
+        const actorName =
+          (normalizedLog.actor_user_id
+            ? actorNameByUserId.get(normalizedLog.actor_user_id)
+            : null) ??
+          normalizedLog.actor_name ??
+          "Usuário desconhecido";
 
         return {
           id: normalizedLog.id,
@@ -1219,7 +1238,7 @@ export function AdminLogs() {
           details: resolvedDetails,
         } satisfies AdminLogListItem;
       });
-  }, [logs, teamNameById]);
+  }, [actorNameByUserId, logs, teamNameById]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 

@@ -8,6 +8,7 @@ import {
   advanceSportsCoreChampionshipSeason,
   isDedicatedSportsCoreEnabled,
   resetSportsCoreChampionshipSeason,
+  resetSportsCoreChampionshipSeasonToPlanning,
   updateSportsCoreChampionship,
 } from "@/integrations/laje-api/sports-core";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,12 +62,15 @@ import {
   resolveCanViewOperationalAdminTabs,
   resolveCanViewReviewAdminTabs,
 } from "@/pages/admin/adminPageVisibility";
-import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
+import {
+  resolvePreferredAdminChampionshipCode,
+  resolveVisibleOperationalChampionshipBracketView,
+} from "@/pages/admin/adminPage.helpers";
 import { AdminPageView } from "@/pages/admin/AdminPageView";
 
 enum ChampionshipStatusFlowDialog {
   NONE = "NONE",
-  RETURN_TO_PLANNING_WITH_GAMES = "RETURN_TO_PLANNING_WITH_GAMES",
+  RESET_CURRENT_SEASON_TO_PLANNING = "RESET_CURRENT_SEASON_TO_PLANNING",
   MOVE_TO_UPCOMING_WITH_GAMES = "MOVE_TO_UPCOMING_WITH_GAMES",
   MOBILE_CONFIGURATION_WARNING = "MOBILE_CONFIGURATION_WARNING",
   ADVANCE_SEASON = "ADVANCE_SEASON",
@@ -352,11 +356,10 @@ export function AdminPage() {
     seasonYear: selectedChampionshipSeasonYear,
   });
   const visibleOperationalChampionshipBracketView = useMemo(() => {
-    if (operationalMatches.length == 0) {
-      return EMPTY_CHAMPIONSHIP_BRACKET_VIEW;
-    }
-
-    return operationalChampionshipBracketView;
+    return resolveVisibleOperationalChampionshipBracketView(
+      operationalChampionshipBracketView,
+      operationalMatches.length,
+    );
   }, [operationalChampionshipBracketView, operationalMatches.length]);
   const operationalMatchBracketContextByMatchId = useMemo(() => {
     return resolveMatchBracketContextByMatchId(visibleOperationalChampionshipBracketView);
@@ -604,35 +607,46 @@ export function AdminPage() {
     return true;
   };
 
-  const handleKeepCurrentGamesAndReturnToPlanning = async () => {
-    setProcessingChampionshipStatusFlowAction(true);
-
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
-
-    setProcessingChampionshipStatusFlowAction(false);
-
-    if (hasUpdatedStatus) {
-      setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
+  const handleResetCurrentSeasonToPlanning = async () => {
+    if (!selectedChampionship) {
+      return;
     }
-  };
 
-  const handleDeleteCurrentGamesAndReturnToPlanning = async () => {
     setProcessingChampionshipStatusFlowAction(true);
 
-    const hasDeletedGames = await deleteCurrentChampionshipMatches();
-
-    if (!hasDeletedGames) {
+    try {
+      if (isDedicatedSportsCoreEnabled()) {
+        await resetSportsCoreChampionshipSeasonToPlanning(
+          selectedChampionship.id,
+          selectedChampionship.current_season_year,
+          accessToken ?? "",
+        );
+      } else {
+        const { error } = await supabase.rpc("reset_championship_season_to_planning", {
+          _championship_id: selectedChampionship.id,
+          _season_year: selectedChampionship.current_season_year,
+        });
+        if (error) {
+          throw error;
+        }
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao reiniciar a temporada.");
       setProcessingChampionshipStatusFlowAction(false);
       return;
     }
 
-    const hasUpdatedStatus = await updateChampionshipStatus(ChampionshipStatus.PLANNING);
-
     setProcessingChampionshipStatusFlowAction(false);
-
-    if (hasUpdatedStatus) {
-      setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
-    }
+    setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.NONE);
+    setActiveTab(AdminPanelTab.BRACKET_SETUP);
+    toast.success("Temporada atual reiniciada. O campeonato voltou para Em breve.");
+    await Promise.all([
+      refetchChampionships(),
+      refetchOperationalMatches(),
+      refetchMatchesTabMatches(),
+      refetchOperationalChampionshipBracket(),
+      refetchMatchesTabChampionshipBracket(),
+    ]);
   };
 
   const handleKeepCurrentGamesAndMoveToUpcoming = async () => {
@@ -688,8 +702,17 @@ export function AdminPage() {
       return;
     }
 
-    if (value == ChampionshipStatus.PLANNING && operationalMatches.length > 0) {
-      setChampionshipStatusFlowDialog(ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES);
+    if (value == ChampionshipStatus.PLANNING) {
+      if (selectedChampionship.status == ChampionshipStatus.FINISHED) {
+        toast.error(
+          "Reabra o campeonato como Em andamento antes de voltar para Em breve e reiniciar a temporada.",
+        );
+        return;
+      }
+
+      setChampionshipStatusFlowDialog(
+        ChampionshipStatusFlowDialog.RESET_CURRENT_SEASON_TO_PLANNING,
+      );
       return;
     }
 
@@ -889,7 +912,8 @@ export function AdminPage() {
 
       <Dialog
         open={
-          championshipStatusFlowDialog == ChampionshipStatusFlowDialog.RETURN_TO_PLANNING_WITH_GAMES
+          championshipStatusFlowDialog ==
+          ChampionshipStatusFlowDialog.RESET_CURRENT_SEASON_TO_PLANNING
         }
         onOpenChange={(isOpen) => {
           if (!isOpen) {
@@ -899,10 +923,11 @@ export function AdminPage() {
       >
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-center">Voltar campeonato para Em breve?</DialogTitle>
+            <DialogTitle className="text-center">Reiniciar a temporada atual?</DialogTitle>
             <DialogDescription className="text-center">
-              Este campeonato já possui jogos cadastrados. Escolha se eles devem ser mantidos ao
-              voltar o status para Em breve.
+              Ao confirmar, todos os jogos, resultados, chaveamentos, classificações e configurações
+              desta temporada serão apagados, e o campeonato voltará para Em breve. Temporadas
+              anteriores e cadastros gerais serão preservados.
             </DialogDescription>
           </DialogHeader>
 
@@ -917,25 +942,14 @@ export function AdminPage() {
             </Button>
             <Button
               type="button"
-              variant="outline"
-              onClick={handleKeepCurrentGamesAndReturnToPlanning}
-              disabled={processingChampionshipStatusFlowAction}
-            >
-              {processingChampionshipStatusFlowAction ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              Manter jogos atuais
-            </Button>
-            <Button
-              type="button"
               variant="destructive"
-              onClick={handleDeleteCurrentGamesAndReturnToPlanning}
+              onClick={handleResetCurrentSeasonToPlanning}
               disabled={processingChampionshipStatusFlowAction}
             >
               {processingChampionshipStatusFlowAction ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : null}
-              Excluir jogos atuais
+              Apagar temporada e voltar para Em breve
             </Button>
           </DialogFooter>
         </DialogContent>

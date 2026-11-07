@@ -1,5 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { isAwsBackendEnabled } from "@/config/environment";
+import { lajeApiRequest } from "@/integrations/laje-api/client";
 import { supabase } from "@/integrations/supabase/client";
 import type { Championship, ChampionshipSport, Team } from "@/lib/types";
 import {
@@ -70,7 +73,10 @@ import {
 } from "@/domain/championship-brackets/championshipBracketKnockoutProjection";
 import { ChampionshipBracketSetupDTO } from "@/domain/championship-brackets/ChampionshipBracketSetupDTO";
 import { ChampionshipBracketWizardDraftDTO } from "@/domain/championship-brackets/ChampionshipBracketWizardDraftDTO";
-import { resolveExactPreviewCacheFromJob } from "@/domain/championship-brackets/championshipBracketExactPreview";
+import {
+  resolveExactPreviewCacheFromJob,
+  resolveExactPreviewResultShell,
+} from "@/domain/championship-brackets/championshipBracketExactPreview";
 import {
   resolveChampionshipBracketExactPreviewCacheValidity,
   resolveChampionshipBracketExactPreviewPayloadSignature,
@@ -297,6 +303,27 @@ const WIZARD_STEP_LABELS = [
   "Sorteio dos Grupos",
   "Revisão",
 ] as const;
+
+const WIZARD_STEP_EDITABLE_DRAFT_FIELDS: Partial<
+  Record<number, readonly (keyof ChampionshipBracketWizardDraftFormValues)[]>
+> = {
+  0: ["season_settings"],
+  1: ["enabled_sport_ids"],
+  2: ["selected_team_ids"],
+  3: [
+    "selected_sport_ids_by_team_id",
+    "show_estimated_start_time_on_cards_by_sport_id",
+    "should_apply_modalities_to_all_teams",
+  ],
+  4: ["selected_competition_keys_by_team_id", "should_apply_naipes_to_all_teams"],
+  5: ["competition_config_by_key"],
+  6: ["schedule_days", "should_replicate_previous_schedule_day"],
+  7: ["individual_event_configs", "individual_session_configs"],
+  8: ["competition_date_availability"],
+  9: ["team_competition_date_availability"],
+  10: ["resource_locks", "match_numbering_mode", "knockout_program_blocks"],
+  11: ["group_assignments_by_competition_key", "group_order_by_competition_key"],
+};
 
 const WIZARD_STEP_ROW_BREAK_INDEX = 7;
 const PERIOD_AVAILABILITY_CARD_COLUMNS = 3;
@@ -675,6 +702,12 @@ function resolveScheduleDayClone(
   };
 }
 
+function setStateIfChanged<T>(setState: Dispatch<SetStateAction<T>>, nextValue: T): void {
+  setState((currentValue) =>
+    JSON.stringify(currentValue) == JSON.stringify(nextValue) ? currentValue : nextValue,
+  );
+}
+
 function resolveDefaultSeasonSettings(
   championshipCode?: ChampionshipCode,
 ): ChampionshipSeasonSettingsInput {
@@ -696,6 +729,23 @@ function resolveDefaultSeasonSettings(
     principal_relegation_count: null,
     access_promotion_count: null,
     yellow_card_reset_phase: YellowCardResetPhase.NONE,
+  };
+}
+
+function resolveSeasonSettingsForChampionship(
+  championshipCode: ChampionshipCode | undefined,
+  seasonSettings: ChampionshipSeasonSettingsInput,
+): ChampionshipSeasonSettingsInput {
+  if (championshipCode == ChampionshipCode.INTERLAJE) {
+    return seasonSettings;
+  }
+
+  return {
+    ...seasonSettings,
+    division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.NONE,
+    principal_slots_count: null,
+    principal_relegation_count: null,
+    access_promotion_count: null,
   };
 }
 
@@ -1390,6 +1440,12 @@ function resolveOperationalPreviewMatchSourceLabel({
     return `${bestSecondPoolPositionMatch[1]}º melhor 2º`;
   }
 
+  const bestFirstPoolPositionMatch = source.match(/^BEST_FIRST_POOL_POSITION_(\d+)$/);
+
+  if (bestFirstPoolPositionMatch) {
+    return `${bestFirstPoolPositionMatch[1]}º melhor 1º`;
+  }
+
   const bestThirdPoolPositionMatch = source.match(/^BEST_THIRD_POOL_POSITION_(\d+)$/);
 
   if (bestThirdPoolPositionMatch) {
@@ -1747,9 +1803,20 @@ function resolveExactPreviewJobElapsedTimeLabel(
 
 function resolveEditableDraftSnapshot(
   draft_form_values: ChampionshipBracketWizardDraftFormValues,
+  step_index?: number,
 ): string {
   const normalized_draft =
     ChampionshipBracketWizardDraftDTO.fromFormValues(draft_form_values).bindToSave();
+
+  if (step_index != null) {
+    const editable_fields = WIZARD_STEP_EDITABLE_DRAFT_FIELDS[step_index] ?? [];
+    const step_snapshot = editable_fields.reduce<Record<string, unknown>>((snapshot, field) => {
+      snapshot[field] = normalized_draft[field];
+      return snapshot;
+    }, {});
+
+    return JSON.stringify(step_snapshot);
+  }
 
   return JSON.stringify({
     ...normalized_draft,
@@ -1893,25 +1960,27 @@ export function AdminChampionshipBracketPage({
     () => resolveDefaultSeasonSettings(selectedChampionship.code),
     [selectedChampionship.code],
   );
+  const canConfigureSeasonDivisionMovements =
+    selectedChampionship.code == ChampionshipCode.INTERLAJE;
   const { seasonSettings: persistedSeasonSettings, loading: seasonSettingsLoading } =
     useChampionshipSeasonSettings({
       championshipId: selectedChampionship.id,
       seasonYear: selectedChampionship.current_season_year,
     });
   const resolvedDefaultSeasonSettings = useMemo(() => {
-    if (!persistedSeasonSettings) {
-      return defaultSeasonSettings;
-    }
+    const seasonSettings = persistedSeasonSettings
+      ? {
+          division_format: persistedSeasonSettings.division_format,
+          division_settlement_mode: persistedSeasonSettings.division_settlement_mode,
+          principal_slots_count: persistedSeasonSettings.principal_slots_count,
+          principal_relegation_count: persistedSeasonSettings.principal_relegation_count,
+          access_promotion_count: persistedSeasonSettings.access_promotion_count,
+          yellow_card_reset_phase: persistedSeasonSettings.yellow_card_reset_phase,
+        }
+      : defaultSeasonSettings;
 
-    return {
-      division_format: persistedSeasonSettings.division_format,
-      division_settlement_mode: persistedSeasonSettings.division_settlement_mode,
-      principal_slots_count: persistedSeasonSettings.principal_slots_count,
-      principal_relegation_count: persistedSeasonSettings.principal_relegation_count,
-      access_promotion_count: persistedSeasonSettings.access_promotion_count,
-      yellow_card_reset_phase: persistedSeasonSettings.yellow_card_reset_phase,
-    } satisfies ChampionshipSeasonSettingsInput;
-  }, [defaultSeasonSettings, persistedSeasonSettings]);
+    return resolveSeasonSettingsForChampionship(selectedChampionship.code, seasonSettings);
+  }, [defaultSeasonSettings, persistedSeasonSettings, selectedChampionship.code]);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [highestUnlockedStepIndex, setHighestUnlockedStepIndex] = useState(0);
   const [seasonSettings, setSeasonSettings] = useState<ChampionshipSeasonSettingsInput>(
@@ -1998,6 +2067,14 @@ export function AdminChampionshipBracketPage({
   const [savingLocationTemplate, setSavingLocationTemplate] = useState(false);
   const [deletingLocationTemplate, setDeletingLocationTemplate] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isCreationCommitted, setIsCreationCommitted] = useState(false);
+  const [wizardNavigationDirection, setWizardNavigationDirection] = useState<
+    "previous" | "next" | "step" | null
+  >(null);
+  const [wizardNavigationTargetStepIndex, setWizardNavigationTargetStepIndex] = useState<
+    number | null
+  >(null);
+  const wizardNavigationLockReference = useRef(false);
   const [saveErrorBannerData, setSaveErrorBannerData] = useState<SaveErrorBannerData | null>(null);
 
   const [exactPreviewCache, setExactPreviewCache] =
@@ -2050,6 +2127,19 @@ export function AdminChampionshipBracketPage({
       );
     },
   );
+
+  useEffect(() => {
+    if (
+      wizardNavigationTargetStepIndex == null ||
+      wizardNavigationTargetStepIndex != currentStepIndex
+    ) {
+      return;
+    }
+
+    wizardNavigationLockReference.current = false;
+    setWizardNavigationTargetStepIndex(null);
+    setWizardNavigationDirection(null);
+  }, [currentStepIndex, wizardNavigationTargetStepIndex]);
   const saveErrorBannerReference = useRef<HTMLDivElement | null>(null);
   const applyWizardDraftReference = useRef<
     | ((
@@ -2069,6 +2159,7 @@ export function AdminChampionshipBracketPage({
     teamId: string;
     groupNumber: number;
     slotId: string;
+    drawingTeamIds: string[];
   } | null>(null);
   const [expandedCompetitionGroupEditorByKey, setExpandedCompetitionGroupEditorByKey] = useState<
     Record<string, boolean>
@@ -2076,14 +2167,22 @@ export function AdminChampionshipBracketPage({
 
   const sanitizeDraftFormValues = useCallback(
     (draftFormValues: ChampionshipBracketWizardDraftFormValues) => {
+      const seasonSettings = resolveSeasonSettingsForChampionship(
+        selectedChampionship.code,
+        draftFormValues.season_settings ?? resolvedDefaultSeasonSettings,
+      );
+
       return sanitizeChampionshipBracketWizardDraft({
-        draftFormValues,
+        draftFormValues: {
+          ...draftFormValues,
+          season_settings: seasonSettings,
+        },
         teams,
         championshipSports,
-        seasonSettings: draftFormValues.season_settings ?? resolvedDefaultSeasonSettings,
+        seasonSettings,
       });
     },
-    [championshipSports, resolvedDefaultSeasonSettings, teams],
+    [championshipSports, resolvedDefaultSeasonSettings, selectedChampionship.code, teams],
   );
 
   const applyWizardDraft = useCallback(
@@ -2109,6 +2208,13 @@ export function AdminChampionshipBracketPage({
         0,
         Math.min(sanitizedDraftFormValues.current_step_index, WIZARD_STEP_LABELS.length - 1),
       );
+      const hasEnabledIndividualSportsInDraft = championshipSports.some(
+        (championshipSport) =>
+          sanitizedDraftFormValues.enabled_sport_ids.includes(championshipSport.sport_id) &&
+          resolveIsIndividualSportName(championshipSport.sports?.name ?? ""),
+      );
+      const resolvedCurrentStepIndex =
+        nextCurrentStepIndex == 7 && !hasEnabledIndividualSportsInDraft ? 8 : nextCurrentStepIndex;
       const resolvedScheduleDays =
         sanitizedDraftFormValues.schedule_days.length > 0
           ? sanitizedDraftFormValues.schedule_days.map((schedule_day) =>
@@ -2117,54 +2223,78 @@ export function AdminChampionshipBracketPage({
           : [resolveInitialScheduleDay()];
       const appliedDraftFormValues: ChampionshipBracketWizardDraftFormValues = {
         ...sanitizedDraftFormValues,
-        current_step_index: nextCurrentStepIndex,
+        current_step_index: resolvedCurrentStepIndex,
         highest_unlocked_step_index: Math.max(
-          nextCurrentStepIndex,
-          sanitizedDraftFormValues.highest_unlocked_step_index ?? nextCurrentStepIndex,
+          resolvedCurrentStepIndex,
+          sanitizedDraftFormValues.highest_unlocked_step_index ?? resolvedCurrentStepIndex,
         ),
         schedule_days: resolvedScheduleDays.map((schedule_day) =>
           resolveScheduleDayClone(schedule_day),
         ),
       };
 
-      setCurrentStepIndex(nextCurrentStepIndex);
-      setHighestUnlockedStepIndex(
-        appliedDraftFormValues.highest_unlocked_step_index ?? nextCurrentStepIndex,
+      setStateIfChanged(setCurrentStepIndex, resolvedCurrentStepIndex);
+      setStateIfChanged(
+        setHighestUnlockedStepIndex,
+        appliedDraftFormValues.highest_unlocked_step_index ?? resolvedCurrentStepIndex,
       );
-      setSeasonSettings(appliedDraftFormValues.season_settings);
-      setEnabledSportIds(appliedDraftFormValues.enabled_sport_ids);
-      setSelectedTeamIds(appliedDraftFormValues.selected_team_ids);
-      setSelectedSportIdsByTeamId(appliedDraftFormValues.selected_sport_ids_by_team_id);
-      setShowEstimatedStartTimeOnCardsBySportId({
+      setStateIfChanged(setSeasonSettings, appliedDraftFormValues.season_settings);
+      setStateIfChanged(setEnabledSportIds, appliedDraftFormValues.enabled_sport_ids);
+      setStateIfChanged(setSelectedTeamIds, appliedDraftFormValues.selected_team_ids);
+      setStateIfChanged(
+        setSelectedSportIdsByTeamId,
+        appliedDraftFormValues.selected_sport_ids_by_team_id,
+      );
+      setStateIfChanged(setShowEstimatedStartTimeOnCardsBySportId, {
         ...defaultShowEstimatedStartTimeOnCardsBySportId,
         ...appliedDraftFormValues.show_estimated_start_time_on_cards_by_sport_id,
       });
-      setSelectedCompetitionKeysByTeamId(
+      setStateIfChanged(
+        setSelectedCompetitionKeysByTeamId,
         appliedDraftFormValues.selected_competition_keys_by_team_id,
       );
-      setShouldApplyModalitiesToAllTeams(
+      setStateIfChanged(
+        setShouldApplyModalitiesToAllTeams,
         appliedDraftFormValues.should_apply_modalities_to_all_teams,
       );
-      setShouldApplyNaipesToAllTeams(appliedDraftFormValues.should_apply_naipes_to_all_teams);
-      setShouldReplicatePreviousScheduleDay(
+      setStateIfChanged(
+        setShouldApplyNaipesToAllTeams,
+        appliedDraftFormValues.should_apply_naipes_to_all_teams,
+      );
+      setStateIfChanged(
+        setShouldReplicatePreviousScheduleDay,
         appliedDraftFormValues.should_replicate_previous_schedule_day,
       );
-      setCompetitionConfigByKey(appliedDraftFormValues.competition_config_by_key);
-      setGroupAssignmentsByCompetitionKey(
+      setStateIfChanged(
+        setCompetitionConfigByKey,
+        appliedDraftFormValues.competition_config_by_key,
+      );
+      setStateIfChanged(
+        setGroupAssignmentsByCompetitionKey,
         appliedDraftFormValues.group_assignments_by_competition_key,
       );
-      setGroupOrderByCompetitionKey(appliedDraftFormValues.group_order_by_competition_key);
-      setScheduleDays(resolvedScheduleDays);
-      setCompetitionDateAvailability(appliedDraftFormValues.competition_date_availability ?? []);
-      setTeamCompetitionDateAvailability(
+      setStateIfChanged(
+        setGroupOrderByCompetitionKey,
+        appliedDraftFormValues.group_order_by_competition_key,
+      );
+      setStateIfChanged(setScheduleDays, resolvedScheduleDays);
+      setStateIfChanged(
+        setCompetitionDateAvailability,
+        appliedDraftFormValues.competition_date_availability ?? [],
+      );
+      setStateIfChanged(
+        setTeamCompetitionDateAvailability,
         appliedDraftFormValues.team_competition_date_availability ?? [],
       );
-      setIndividualEventConfigs(appliedDraftFormValues.individual_event_configs);
-      setIndividualSessionConfigs(appliedDraftFormValues.individual_session_configs);
-      setResourceLocks(appliedDraftFormValues.resource_locks);
-      setMatchNumberingMode(appliedDraftFormValues.match_numbering_mode);
-      setKnockoutProgramBlocks(appliedDraftFormValues.knockout_program_blocks);
-      setExactPreviewCache(appliedDraftFormValues.exact_preview_cache ?? null);
+      setStateIfChanged(setIndividualEventConfigs, appliedDraftFormValues.individual_event_configs);
+      setStateIfChanged(
+        setIndividualSessionConfigs,
+        appliedDraftFormValues.individual_session_configs,
+      );
+      setStateIfChanged(setResourceLocks, appliedDraftFormValues.resource_locks);
+      setStateIfChanged(setMatchNumberingMode, appliedDraftFormValues.match_numbering_mode);
+      setStateIfChanged(setKnockoutProgramBlocks, appliedDraftFormValues.knockout_program_blocks);
+      setStateIfChanged(setExactPreviewCache, appliedDraftFormValues.exact_preview_cache ?? null);
       setLoadingOperationalPreview(false);
       setOperationalPreviewError(null);
       setSaveErrorBannerData(null);
@@ -2344,6 +2474,7 @@ export function AdminChampionshipBracketPage({
             completed_at: exactPreviewCache.completed_at,
             is_valid_for_creation: exactPreviewCache.is_valid_for_creation,
             generated_at: exactPreviewCache.generated_at,
+            preview_match_count: exactPreviewCache.preview_match_count,
             // A lista de jogos da prévia não deve aumentar o rascunho salvo.
             result: null,
           }
@@ -2384,13 +2515,21 @@ export function AdminChampionshipBracketPage({
   }, [currentWizardDraftFormValues, sanitizeDraftFormValues]);
 
   const currentEditableDraftSnapshot = useMemo(() => {
-    return resolveEditableDraftSnapshot(currentWizardDraftFormValues);
-  }, [currentWizardDraftFormValues]);
+    return resolveEditableDraftSnapshot(sanitizedCurrentWizardDraftFormValues, currentStepIndex);
+  }, [currentStepIndex, sanitizedCurrentWizardDraftFormValues]);
+
+  const lastSavedCurrentStepDraftSnapshot = useMemo(() => {
+    const lastSavedDraftFormValues = resolveSnapshotDraftFormValues(lastSavedEditableDraftSnapshot);
+
+    return lastSavedDraftFormValues
+      ? resolveEditableDraftSnapshot(lastSavedDraftFormValues, currentStepIndex)
+      : null;
+  }, [currentStepIndex, lastSavedEditableDraftSnapshot]);
 
   const isDraftSaveDisabled =
     saving ||
     !hasResolvedInitialDraftSnapshot ||
-    currentEditableDraftSnapshot == lastSavedEditableDraftSnapshot;
+    currentEditableDraftSnapshot == lastSavedCurrentStepDraftSnapshot;
 
   useEffect(() => {
     const mediaQueryList = window.matchMedia("(max-width: 1023px)");
@@ -2442,20 +2581,45 @@ export function AdminChampionshipBracketPage({
       workflowAction: string;
       changedFields?: string[];
     }) => {
-      const { error } = await supabase.rpc("write_championship_bracket_workflow_log", {
-        _action_type: actionType,
-        _step: WIZARD_STEP_LABELS[stepIndex] ?? "Fluxo de configuração",
-        _description: description,
-        _metadata: {
-          workflow_action: workflowAction,
-          championship_id: selectedChampionship.id,
-          season_year: selectedChampionship.current_season_year,
-          changed_fields: changedFields ?? [],
-        },
-      });
+      const step = WIZARD_STEP_LABELS[stepIndex] ?? "Fluxo de configuração";
+      try {
+        if (isAwsBackendEnabled()) {
+          await lajeApiRequest<void>(
+            `/championships/${selectedChampionship.id}/bracket/draft/workflow-logs`,
+            {
+              method: "POST",
+              body: JSON.stringify({
+                actionType,
+                step,
+                description,
+                workflowAction,
+                changedFields: changedFields ?? [],
+              }),
+            },
+          );
+          return;
+        }
 
-      if (error) {
-        console.error("Erro ao registrar log do fluxo de configuração:", error.message);
+        const { error } = await supabase.rpc("write_championship_bracket_workflow_log", {
+          _action_type: actionType,
+          _step: step,
+          _description: description,
+          _metadata: {
+            workflow_action: workflowAction,
+            championship_id: selectedChampionship.id,
+            season_year: selectedChampionship.current_season_year,
+            changed_fields: changedFields ?? [],
+          },
+        });
+
+        if (error) {
+          console.error("Erro ao registrar log do fluxo de configuração:", error.message);
+        }
+      } catch (error) {
+        console.error(
+          "Erro ao registrar log do fluxo de configuração:",
+          error instanceof Error ? error.message : String(error),
+        );
       }
     },
     [selectedChampionship.current_season_year, selectedChampionship.id],
@@ -2739,6 +2903,31 @@ export function AdminChampionshipBracketPage({
         sport_name: championshipSport.sports?.name ?? "Modalidade",
       }));
   }, [enabledChampionshipSports, selectedSportIdSet]);
+  const hasEnabledIndividualSports = useMemo(
+    () =>
+      enabledChampionshipSports.some((championshipSport) =>
+        resolveIsIndividualSportName(championshipSport.sports?.name ?? ""),
+      ),
+    [enabledChampionshipSports],
+  );
+  const visibleWizardStepIndices = useMemo(
+    () =>
+      WIZARD_STEP_LABELS.map((_, stepIndex) => stepIndex).filter(
+        (stepIndex) => stepIndex != 7 || hasEnabledIndividualSports,
+      ),
+    [hasEnabledIndividualSports],
+  );
+
+  useEffect(() => {
+    if (hasEnabledIndividualSports || currentStepIndex != 7) {
+      return;
+    }
+
+    setCurrentStepIndex(8);
+    setHighestUnlockedStepIndex((currentHighestUnlockedStepIndex) =>
+      Math.max(currentHighestUnlockedStepIndex, 8),
+    );
+  }, [currentStepIndex, hasEnabledIndividualSports]);
 
   useEffect(() => {
     if (!hasResolvedInitialDraftSnapshot) {
@@ -4647,6 +4836,7 @@ export function AdminChampionshipBracketPage({
       teamId: drawnTeamId,
       groupNumber: nextSlot.groupNumber,
       slotId: newSlotId,
+      drawingTeamIds: availableTeamIds,
     });
     setDrawingCompetitionKey(competitionKey);
     setShowDrawModal(true);
@@ -4663,19 +4853,6 @@ export function AdminChampionshipBracketPage({
       pendingDrawResult.slotId,
     );
   };
-
-  const drawingTeamIds = useMemo(() => {
-    if (!drawingCompetitionKey) {
-      return [];
-    }
-
-    const allTeamIds = teamIdsByCompetitionKey[drawingCompetitionKey] ?? [];
-    const assignedIds = new Set(
-      Object.keys(groupAssignmentsByCompetitionKey[drawingCompetitionKey] ?? {}),
-    );
-
-    return allTeamIds.filter((id) => !assignedIds.has(id));
-  }, [drawingCompetitionKey, groupAssignmentsByCompetitionKey, teamIdsByCompetitionKey]);
 
   const drawingCompetitionOption = useMemo(() => {
     if (!drawingCompetitionKey) {
@@ -4694,12 +4871,19 @@ export function AdminChampionshipBracketPage({
     const currentDraft = resolveWizardDraftFormValues();
     void saveChampionshipBracketWizardDraft(selectedChampionship.id, currentDraft).then(
       (response) => {
-        if (!response.error && response.metadata) {
+        if (response.error) {
+          toast.warning(
+            "Resultado do sorteio salvo localmente, mas a sincronização com o banco falhou.",
+          );
+          return;
+        }
+
+        if (response.metadata) {
           setRemoteDraftMetadata(response.metadata);
         }
+        setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(currentDraft));
       },
     );
-    setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(currentDraft));
   };
 
   const handleDrawConfirm = () => {
@@ -4707,7 +4891,7 @@ export function AdminChampionshipBracketPage({
   };
 
   const validateCurrentStep = () => {
-    if (currentStepIndex == 0) {
+    if (currentStepIndex == 0 && canConfigureSeasonDivisionMovements) {
       if (
         seasonSettings.division_format == ChampionshipSeasonDivisionFormat.SEPARATED &&
         seasonSettings.division_settlement_mode ==
@@ -5024,7 +5208,7 @@ export function AdminChampionshipBracketPage({
       }
     }
 
-    if (currentStepIndex == 7) {
+    if (currentStepIndex == 7 && hasEnabledIndividualSports) {
       if (selectedIndividualCompetitionOptions.length > 0) {
         const sessionConfigByKey = new Map(
           individualSessionConfigs.map((sessionConfig) => [
@@ -5520,16 +5704,37 @@ export function AdminChampionshipBracketPage({
               }
 
               if (
-                !Number.isInteger(target.planned_match_count) ||
-                target.planned_match_count <= 0
+                (target.planning_mode ?? "MANUAL") == "MANUAL" &&
+                (!Number.isInteger(target.planned_match_count) || target.planned_match_count <= 0)
               ) {
                 toast.error(
                   `A quantidade planejada de jogos de ${courtDisplayLabel} precisa ser um número inteiro maior que zero.`,
                 );
                 return false;
               }
+            }
 
-              plannedCollectiveSportIdSet.add(target.sport_id);
+            for (const sportId of court.sport_ids) {
+              if (!activeCollectiveSportIdSet.has(sportId)) {
+                continue;
+              }
+
+              const target = court.sport_match_targets.find(
+                (sportMatchTarget) => sportMatchTarget.sport_id == sportId,
+              );
+              const recommendationLine =
+                sportMatchTargetRecommendationByKey.get(
+                  [scheduleDay.id, scheduleLocation.id, court.id, sportId].join("::"),
+                ) ?? null;
+              const planningMode = target == null ? "AUTO" : (target.planning_mode ?? "MANUAL");
+              const effectiveMatchCount =
+                planningMode == "AUTO"
+                  ? (recommendationLine?.recommended_match_count ?? 0)
+                  : (target?.planned_match_count ?? 0);
+
+              if (effectiveMatchCount > 0) {
+                plannedCollectiveSportIdSet.add(sportId);
+              }
             }
 
             const sportPreference = court.sport_preference;
@@ -5863,38 +6068,96 @@ export function AdminChampionshipBracketPage({
   };
 
   const handleNextStep = async () => {
-    if (!validateCurrentStep()) {
+    if (saving || wizardNavigationLockReference.current) {
       return;
     }
 
-    const next_step_index = Math.min(currentStepIndex + 1, WIZARD_STEP_LABELS.length - 1);
-    const nextHighestUnlockedStepIndex = Math.max(highestUnlockedStepIndex, next_step_index);
-    const next_draft_form_values = sanitizeDraftFormValues({
-      ...sanitizedCurrentWizardDraftFormValues,
-      current_step_index: next_step_index,
-      highest_unlocked_step_index: nextHighestUnlockedStepIndex,
-    });
+    wizardNavigationLockReference.current = true;
+    setWizardNavigationDirection("next");
+    let navigationCommitted = false;
 
-    await persistWizardDraft(next_draft_form_values);
-    setCurrentStepIndex(next_step_index);
-    setHighestUnlockedStepIndex(nextHighestUnlockedStepIndex);
-    const changedFields = resolveWorkflowChangedFields(
-      lastSavedEditableDraftSnapshot,
-      next_draft_form_values,
-      currentStepIndex,
-    );
+    try {
+      if (!validateCurrentStep()) {
+        return;
+      }
 
-    await writeWorkflowLog({
-      actionType: "UPDATE",
-      stepIndex: next_step_index,
-      description: `Etapa "${WIZARD_STEP_LABELS[next_step_index]}" atualizada e avançada.`,
-      workflowAction: "STEP_ADVANCED",
-      changedFields,
-    });
+      const next_step_index =
+        visibleWizardStepIndices.find((stepIndex) => stepIndex > currentStepIndex) ??
+        currentStepIndex;
+      const nextHighestUnlockedStepIndex = Math.max(highestUnlockedStepIndex, next_step_index);
+      const next_draft_form_values = sanitizeDraftFormValues({
+        ...sanitizedCurrentWizardDraftFormValues,
+        current_step_index: next_step_index,
+        highest_unlocked_step_index: nextHighestUnlockedStepIndex,
+      });
+
+      const draftSaveResponse = await persistWizardDraft(next_draft_form_values);
+      if (draftSaveResponse.error) {
+        return;
+      }
+
+      setWizardNavigationTargetStepIndex(next_step_index);
+      setCurrentStepIndex(next_step_index);
+      setHighestUnlockedStepIndex(nextHighestUnlockedStepIndex);
+      navigationCommitted = true;
+      const changedFields = resolveWorkflowChangedFields(
+        lastSavedEditableDraftSnapshot,
+        next_draft_form_values,
+        currentStepIndex,
+      );
+
+      await writeWorkflowLog({
+        actionType: "UPDATE",
+        stepIndex: next_step_index,
+        description: `Etapa "${WIZARD_STEP_LABELS[next_step_index]}" atualizada e avançada.`,
+        workflowAction: "STEP_ADVANCED",
+        changedFields,
+      });
+    } finally {
+      if (!navigationCommitted) {
+        wizardNavigationLockReference.current = false;
+        setWizardNavigationDirection(null);
+      }
+    }
   };
 
-  const handlePreviousStep = () => {
-    setCurrentStepIndex((currentStep) => Math.max(currentStep - 1, 0));
+  const handlePreviousStep = async () => {
+    if (saving || wizardNavigationLockReference.current) {
+      return;
+    }
+
+    const previousStepIndices = visibleWizardStepIndices.filter(
+      (stepIndex) => stepIndex < currentStepIndex,
+    );
+    const previousStepIndex = previousStepIndices[previousStepIndices.length - 1];
+    if (previousStepIndex == null) {
+      return;
+    }
+
+    wizardNavigationLockReference.current = true;
+    setWizardNavigationDirection("previous");
+    let navigationCommitted = false;
+
+    try {
+      const previousDraftFormValues = sanitizeDraftFormValues({
+        ...sanitizedCurrentWizardDraftFormValues,
+        current_step_index: previousStepIndex,
+        highest_unlocked_step_index: highestUnlockedStepIndex,
+      });
+      const draftSaveResponse = await persistWizardDraft(previousDraftFormValues);
+      if (draftSaveResponse.error) {
+        return;
+      }
+
+      setWizardNavigationTargetStepIndex(previousStepIndex);
+      setCurrentStepIndex(previousStepIndex);
+      navigationCommitted = true;
+    } finally {
+      if (!navigationCommitted) {
+        wizardNavigationLockReference.current = false;
+        setWizardNavigationDirection(null);
+      }
+    }
   };
 
   const persistWizardDraft = useCallback(
@@ -5924,7 +6187,9 @@ export function AdminChampionshipBracketPage({
         setRemoteDraftMetadata(draftSaveResponse.metadata);
       }
 
-      setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(nextDraftFormValues));
+      if (!draftSaveResponse.error) {
+        setLastSavedEditableDraftSnapshot(resolveEditableDraftSnapshot(nextDraftFormValues));
+      }
 
       return draftSaveResponse;
     },
@@ -5933,7 +6198,13 @@ export function AdminChampionshipBracketPage({
 
   const handleStepNavigation = useCallback(
     async (stepIndex: number) => {
-      if (saving || stepIndex == currentStepIndex || stepIndex > highestUnlockedStepIndex) {
+      if (
+        saving ||
+        wizardNavigationLockReference.current ||
+        !visibleWizardStepIndices.includes(stepIndex) ||
+        stepIndex == currentStepIndex ||
+        stepIndex > highestUnlockedStepIndex
+      ) {
         return;
       }
 
@@ -5946,8 +6217,25 @@ export function AdminChampionshipBracketPage({
         ),
       });
 
-      await persistWizardDraft(nextDraftFormValues);
-      setCurrentStepIndex(stepIndex);
+      wizardNavigationLockReference.current = true;
+      setWizardNavigationDirection("step");
+      let navigationCommitted = false;
+
+      try {
+        const draftSaveResponse = await persistWizardDraft(nextDraftFormValues);
+        if (draftSaveResponse.error) {
+          return;
+        }
+
+        setWizardNavigationTargetStepIndex(stepIndex);
+        setCurrentStepIndex(stepIndex);
+        navigationCommitted = true;
+      } finally {
+        if (!navigationCommitted) {
+          wizardNavigationLockReference.current = false;
+          setWizardNavigationDirection(null);
+        }
+      }
     },
     [
       currentStepIndex,
@@ -5956,6 +6244,7 @@ export function AdminChampionshipBracketPage({
       sanitizeDraftFormValues,
       sanitizedCurrentWizardDraftFormValues,
       saving,
+      visibleWizardStepIndices,
     ],
   );
 
@@ -6136,23 +6425,35 @@ export function AdminChampionshipBracketPage({
           name: location.name,
           position: locationIndex + 1,
           courts: location.courts.map((court, courtIndex) => {
-            const resolvedSportMatchTargets = court.sport_match_targets
-              .map((target) => {
+            const targetBySportId = new Map(
+              court.sport_match_targets.map((target) => [target.sport_id, target]),
+            );
+            const resolvedSportMatchTargets = [
+              ...new Set([...court.sport_ids, ...targetBySportId.keys()]),
+            ]
+              .map((sportId) => {
+                const target = targetBySportId.get(sportId) ?? null;
                 const recommendationLine =
                   sportMatchTargetRecommendationByKey.get(
-                    [scheduleDay.id, location.id, court.id, target.sport_id].join("::"),
+                    [scheduleDay.id, location.id, court.id, sportId].join("::"),
                   ) ?? null;
+                const planningMode = target == null ? "AUTO" : (target.planning_mode ?? "MANUAL");
+
+                if (target == null && recommendationLine == null) {
+                  return null;
+                }
+
                 const resolvedMatchCount =
-                  (target.planning_mode ?? "MANUAL") == "AUTO"
+                  planningMode == "AUTO"
                     ? (recommendationLine?.recommended_match_count ?? 0)
-                    : target.planned_match_count;
+                    : (target?.planned_match_count ?? 0);
 
                 if (!Number.isInteger(resolvedMatchCount) || resolvedMatchCount <= 0) {
                   return null;
                 }
 
                 return {
-                  sport_id: target.sport_id,
+                  sport_id: sportId,
                   planned_match_count: resolvedMatchCount,
                 };
               })
@@ -6283,7 +6584,36 @@ export function AdminChampionshipBracketPage({
     }
   }, [championshipSports, resolveSetupPayload, teams]);
 
-  const operationalPreview = exactPreviewCache?.result ?? null;
+  const operationalPreview = useMemo(() => {
+    if (exactPreviewCache?.result) {
+      return exactPreviewCache.result;
+    }
+
+    if (
+      !exactPreviewCache ||
+      exactPreviewCache.payload_signature != structuralReviewState.payloadSignature ||
+      !["COMPLETED", "CONSUMED"].includes(exactPreviewCache.status)
+    ) {
+      return null;
+    }
+
+    return resolveExactPreviewResultShell({
+      cache: exactPreviewCache,
+      matchNumberingMode,
+      scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
+    });
+  }, [
+    exactPreviewCache,
+    matchNumberingMode,
+    structuralReviewState.payload?.schedule_days,
+    structuralReviewState.payloadSignature,
+  ]);
+  const expectedExactPreviewMatchCount =
+    structuralReviewState.review?.summary.estimated_match_count ?? 0;
+  const hasEmptyExactPreviewForPlannedMatches =
+    exactPreviewCache?.status == "COMPLETED" &&
+    expectedExactPreviewMatchCount > 0 &&
+    operationalPreview?.summary?.total_matches === 0;
   const operationalPreviewMatchNumberByEntryKey = useMemo(
     () =>
       operationalPreview
@@ -6344,6 +6674,7 @@ export function AdminChampionshipBracketPage({
     resolveChampionshipBracketExactPreviewCacheValidity({
       cache: exactPreviewCache,
       payloadSignature: structuralReviewState.payloadSignature,
+      expectedMatchCount: expectedExactPreviewMatchCount,
     });
   const hasBlockingExactPreviewDiagnostics =
     exactPreviewCache?.status == "COMPLETED" &&
@@ -6449,6 +6780,7 @@ export function AdminChampionshipBracketPage({
         localPayloadSignature: structuralReviewState.payloadSignature,
         matchNumberingMode,
         previousResult: null,
+        previousMatchCount: 0,
         scheduleDays: structuralReviewState.payload.schedule_days,
       });
 
@@ -6529,6 +6861,7 @@ export function AdminChampionshipBracketPage({
           localPayloadSignature: currentCache.payload_signature,
           matchNumberingMode,
           previousResult: currentCache.result,
+          previousMatchCount: currentCache.preview_match_count,
           scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
         });
       });
@@ -6576,8 +6909,9 @@ export function AdminChampionshipBracketPage({
       );
       if (cachedDay || !exactPreviewCache?.job_id) return;
 
+      const jobId = exactPreviewCache.job_id;
       setLoadingOperationalPreviewDate(date);
-      const response = await fetchChampionshipBracketPreviewJobDay(exactPreviewCache.job_id, date);
+      const response = await fetchChampionshipBracketPreviewJobDay(jobId, date);
       setLoadingOperationalPreviewDate(null);
 
       if (response.error || !response.data) {
@@ -6588,19 +6922,35 @@ export function AdminChampionshipBracketPage({
       }
 
       setExactPreviewCache((currentCache) => {
-        if (!currentCache?.result) return currentCache;
+        if (!currentCache || currentCache.job_id != jobId) {
+          return currentCache;
+        }
+
+        const currentResult =
+          currentCache.result ??
+          resolveExactPreviewResultShell({
+            cache: currentCache,
+            matchNumberingMode,
+            scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
+          });
+
         return {
           ...currentCache,
           result: {
-            ...currentCache.result,
-            days: currentCache.result.days.map((previewDay) =>
+            ...currentResult,
+            days: currentResult.days.map((previewDay) =>
               previewDay.date == date ? response.data! : previewDay,
             ),
           },
         };
       });
     },
-    [exactPreviewCache, expandedOperationalPreviewDates],
+    [
+      exactPreviewCache,
+      expandedOperationalPreviewDates,
+      matchNumberingMode,
+      structuralReviewState.payload?.schedule_days,
+    ],
   );
 
   const cancelOperationalPreview = useCallback(async () => {
@@ -6622,6 +6972,7 @@ export function AdminChampionshipBracketPage({
             localPayloadSignature: structuralReviewState.payloadSignature,
             matchNumberingMode,
             previousResult: exactPreviewCache.result,
+            previousMatchCount: exactPreviewCache.preview_match_count,
             scheduleDays: structuralReviewState.payload?.schedule_days ?? [],
           }),
         );
@@ -6639,17 +6990,30 @@ export function AdminChampionshipBracketPage({
     structuralReviewState.payloadSignature,
   ]);
 
+  const resolveBeachSoccerEstimatedStartTimeSettings = useCallback(() => {
+    return championshipSports.reduce<Record<string, boolean>>((settings, championshipSport) => {
+      if (
+        resolveNormalizedSportName(championshipSport.sports?.name ?? "") ==
+        NORMALIZED_BEACH_SOCCER_NAME
+      ) {
+        settings[championshipSport.sport_id] =
+          showEstimatedStartTimeOnCardsBySportId[championshipSport.sport_id] ??
+          championshipSport.show_estimated_start_time_on_cards;
+      }
+      return settings;
+    }, {});
+  }, [championshipSports, showEstimatedStartTimeOnCardsBySportId]);
+
   const persistBeachSoccerEstimatedStartTimeSetting = useCallback(async () => {
     const beachSoccerChampionshipSports = championshipSports.filter(
       (championshipSport) =>
         resolveNormalizedSportName(championshipSport.sports?.name ?? "") ==
         NORMALIZED_BEACH_SOCCER_NAME,
     );
+    const settings = resolveBeachSoccerEstimatedStartTimeSettings();
 
     for (const championshipSport of beachSoccerChampionshipSports) {
-      const nextShowEstimatedStartTimeOnCards =
-        showEstimatedStartTimeOnCardsBySportId[championshipSport.sport_id] ??
-        championshipSport.show_estimated_start_time_on_cards;
+      const nextShowEstimatedStartTimeOnCards = settings[championshipSport.sport_id];
 
       const { error } = await supabase
         .from("championship_sports")
@@ -6665,10 +7029,21 @@ export function AdminChampionshipBracketPage({
         );
       }
     }
-  }, [championshipSports, showEstimatedStartTimeOnCardsBySportId]);
+  }, [championshipSports, resolveBeachSoccerEstimatedStartTimeSettings]);
 
   const handleSave = async () => {
-    if (!validateCurrentStep()) {
+    if (isCreationCommitted || !validateCurrentStep()) {
+      return;
+    }
+
+    if (hasEmptyExactPreviewForPlannedMatches) {
+      setSaveErrorBannerData({
+        title: "A prévia exata não retornou partidas",
+        message:
+          "A revisão estrutural prevê partidas, mas o cálculo exato terminou com zero jogos. Atualize a programação antes de criar o campeonato.",
+        suggestion:
+          "Use Atualizar programação exata e confirme que a prévia lista os jogos previstos.",
+      });
       return;
     }
 
@@ -6707,12 +7082,16 @@ export function AdminChampionshipBracketPage({
     setSaving(true);
     setSaveErrorBannerData(null);
     const payload = structuralReviewState.payload;
+    let creationCommitted = false;
+    let generatedViewRefreshCompleted = false;
+    let finalizationRefreshMessage: string | null = null;
 
     try {
       const response = await createChampionshipBracketFromPreviewJob(
         selectedChampionship.id,
         payload,
         exactPreviewCache.job_id,
+        resolveBeachSoccerEstimatedStartTimeSettings(),
       );
 
       if (response.error || !response.data) {
@@ -6720,17 +7099,18 @@ export function AdminChampionshipBracketPage({
           response.error?.message ?? "Não foi possível gerar os grupos automaticamente.",
         );
       }
+      creationCommitted = true;
+      setIsCreationCommitted(true);
+      clearChampionshipBracketWizardDraft(selectedChampionship.id);
 
-      await persistBeachSoccerEstimatedStartTimeSetting();
+      if (!isAwsBackendEnabled()) {
+        await persistBeachSoccerEstimatedStartTimeSetting();
+      }
       const seasonSettingsSaveResponse = await saveChampionshipSeasonSettings(
         {
           championship_id: selectedChampionship.id,
           season_year: selectedChampionship.current_season_year,
-          division_format: seasonSettings.division_format,
-          division_settlement_mode: seasonSettings.division_settlement_mode,
-          principal_slots_count: seasonSettings.principal_slots_count,
-          principal_relegation_count: seasonSettings.principal_relegation_count,
-          access_promotion_count: seasonSettings.access_promotion_count,
+          ...resolveSeasonSettingsForChampionship(selectedChampionship.code, seasonSettings),
           yellow_card_reset_phase:
             seasonSettings.yellow_card_reset_phase ?? YellowCardResetPhase.NONE,
         },
@@ -6765,14 +7145,16 @@ export function AdminChampionshipBracketPage({
         }
       }
 
-      clearChampionshipBracketWizardDraft(selectedChampionship.id);
-      await writeWorkflowLog({
-        actionType: "INSERT",
-        stepIndex: currentStepIndex,
-        description: "Configuração do campeonato concluída e chave gerada.",
-        workflowAction: "BRACKET_GENERATED",
-      });
+      if (!isAwsBackendEnabled()) {
+        await writeWorkflowLog({
+          actionType: "INSERT",
+          stepIndex: currentStepIndex,
+          description: "Configuração do campeonato concluída e chave gerada.",
+          workflowAction: "BRACKET_GENERATED",
+        });
+      }
       await onGenerated();
+      generatedViewRefreshCompleted = true;
       toast.success("Grupos e jogos da fase de grupos gerados com sucesso.");
     } catch (error) {
       const resolvedMessage =
@@ -6782,11 +7164,31 @@ export function AdminChampionshipBracketPage({
         ? resolvedMessage.split("Sugestão:")[0].trim()
         : resolvedMessage;
 
-      setSaveErrorBannerData({
-        title: "Não foi possível criar o campeonato",
-        message: normalizedMessage,
-        suggestion: resolveSaveErrorSuggestion(resolvedMessage),
-      });
+      if (creationCommitted) {
+        if (!generatedViewRefreshCompleted) {
+          try {
+            await onGenerated();
+            generatedViewRefreshCompleted = true;
+          } catch (refreshError) {
+            finalizationRefreshMessage =
+              refreshError instanceof Error
+                ? refreshError.message
+                : "Erro inesperado ao atualizar o painel.";
+          }
+        }
+        setSaveErrorBannerData({
+          title: "Campeonato criado, mas houve falha na finalização",
+          message: `O chaveamento e os jogos já foram salvos. ${normalizedMessage}${finalizationRefreshMessage ? ` Falha ao atualizar o painel: ${finalizationRefreshMessage}` : ""}`,
+          suggestion:
+            "Não crie o campeonato novamente. Atualize o painel e verifique a edição gerada antes de continuar.",
+        });
+      } else {
+        setSaveErrorBannerData({
+          title: "Não foi possível criar o campeonato",
+          message: normalizedMessage,
+          suggestion: resolveSaveErrorSuggestion(resolvedMessage),
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -7828,9 +8230,11 @@ export function AdminChampionshipBracketPage({
                         "::",
                       ),
                     ) ?? null;
+                  const planningMode =
+                    currentTarget == null ? "AUTO" : (currentTarget.planning_mode ?? "MANUAL");
                   const plannedMatchCount = Math.max(
                     0,
-                    (currentTarget?.planning_mode ?? "MANUAL") == "AUTO"
+                    planningMode == "AUTO"
                       ? (recommendationLine?.recommended_match_count ?? 0)
                       : (currentTarget?.planned_match_count ?? 0),
                   );
@@ -7842,15 +8246,21 @@ export function AdminChampionshipBracketPage({
                   };
                 })
                 .filter((summary) => summary.planned_match_count > 0),
-              planned_match_count: court.sport_match_targets.reduce((total, target) => {
+              planned_match_count: sportOptions.reduce((total, sportOption) => {
+                const currentTarget = court.sport_match_targets.find(
+                  (target) => target.sport_id == sportOption.sport_id,
+                );
                 const recommendationLine =
                   sportMatchTargetRecommendationByKey.get(
-                    [scheduleDay.id, scheduleLocation.id, court.id, target.sport_id].join("::"),
+                    [scheduleDay.id, scheduleLocation.id, court.id, sportOption.sport_id].join(
+                      "::",
+                    ),
                   ) ?? null;
                 const effectiveMatchCount =
-                  (target.planning_mode ?? "MANUAL") == "AUTO"
+                  (currentTarget == null ? "AUTO" : (currentTarget.planning_mode ?? "MANUAL")) ==
+                  "AUTO"
                     ? (recommendationLine?.recommended_match_count ?? 0)
-                    : target.planned_match_count;
+                    : (currentTarget?.planned_match_count ?? 0);
 
                 return total + Math.max(0, effectiveMatchCount);
               }, 0),
@@ -8289,15 +8699,15 @@ export function AdminChampionshipBracketPage({
                 !Number.isInteger(plannedMatchCount) ||
                 plannedMatchCount <= 0
               ) {
-                if ((existingTarget?.planning_mode ?? "MANUAL") == "AUTO") {
+                if (existingTarget != null) {
                   return normalizeCourtSportPreferenceByMatchTargets({
                     ...court,
                     sport_match_targets: [
                       ...remainingTargets,
                       {
-                        sport_id: sportId,
+                        ...existingTarget,
                         planned_match_count: 0,
-                        planning_mode: "AUTO",
+                        planning_mode: existingTarget.planning_mode ?? "MANUAL",
                       },
                     ],
                   });
@@ -8357,7 +8767,17 @@ export function AdminChampionshipBracketPage({
               );
 
               if (planningMode == "MANUAL" && existingTarget == null) {
-                return normalizeCourtSportPreferenceByMatchTargets(court);
+                return normalizeCourtSportPreferenceByMatchTargets({
+                  ...court,
+                  sport_match_targets: [
+                    ...remainingTargets,
+                    {
+                      sport_id: sportId,
+                      planned_match_count: 0,
+                      planning_mode: "MANUAL",
+                    },
+                  ],
+                });
               }
 
               return normalizeCourtSportPreferenceByMatchTargets({
@@ -8566,21 +8986,22 @@ export function AdminChampionshipBracketPage({
           <div className="rounded-2xl border border-transparent bg-background/60 p-1 shadow-[0_12px_24px_rgba(15,23,42,0.14)] dark:shadow-none dark:border-border/60">
             <div className="space-y-1">
               {[0, WIZARD_STEP_ROW_BREAK_INDEX].map((startIndex) => {
-                const stepLabels =
-                  startIndex == 0
-                    ? WIZARD_STEP_LABELS.slice(0, WIZARD_STEP_ROW_BREAK_INDEX)
-                    : WIZARD_STEP_LABELS.slice(WIZARD_STEP_ROW_BREAK_INDEX);
+                const stepIndices = visibleWizardStepIndices.slice(
+                  startIndex,
+                  startIndex == 0 ? WIZARD_STEP_ROW_BREAK_INDEX : undefined,
+                );
 
                 return (
                   <div
                     key={`wizard-step-row-${startIndex}`}
                     className="grid gap-1"
                     style={{
-                      gridTemplateColumns: `repeat(${stepLabels.length}, minmax(0, 1fr))`,
+                      gridTemplateColumns: `repeat(${stepIndices.length}, minmax(0, 1fr))`,
                     }}
                   >
-                    {stepLabels.map((label, stepOffset) => {
-                      const stepIndex = startIndex + stepOffset;
+                    {stepIndices.map((stepIndex) => {
+                      const label = WIZARD_STEP_LABELS[stepIndex];
+                      const visibleStepNumber = visibleWizardStepIndices.indexOf(stepIndex) + 1;
                       const isStepUnlocked = stepIndex <= highestUnlockedStepIndex;
                       const isCurrentStep = stepIndex == currentStepIndex;
 
@@ -8591,17 +9012,17 @@ export function AdminChampionshipBracketPage({
                           onClick={() => {
                             void handleStepNavigation(stepIndex);
                           }}
-                          disabled={!isStepUnlocked || saving}
+                          disabled={!isStepUnlocked || saving || wizardNavigationDirection != null}
                           className={`flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
                             isCurrentStep
                               ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)] dark:shadow-none"
                               : isStepUnlocked
-                                ? "bg-primary/10 text-primary hover:bg-primary/15"
+                                ? "cursor-pointer bg-primary/10 text-primary hover:bg-primary/15"
                                 : "bg-transparent text-muted-foreground/60 cursor-not-allowed"
                           }`}
                         >
                           <div className="leading-tight">
-                            {stepIndex + 1}. {label}
+                            {visibleStepNumber}. {label}
                           </div>
                         </button>
                       );
@@ -8622,7 +9043,7 @@ export function AdminChampionshipBracketPage({
                   onClick={() => {
                     void handleSaveDraft();
                   }}
-                  disabled={isDraftSaveDisabled}
+                  disabled={isDraftSaveDisabled || wizardNavigationDirection != null}
                 >
                   Salvar rascunho
                 </Button>
@@ -8636,21 +9057,32 @@ export function AdminChampionshipBracketPage({
                   variant="outline"
                   size="lg"
                   className="px-8 border-border/40 bg-background/40 hover:bg-background/60 font-bold transition-all"
-                  onClick={handlePreviousStep}
-                  disabled={currentStepIndex == 0 || saving}
+                  onClick={() => {
+                    void handlePreviousStep();
+                  }}
+                  disabled={currentStepIndex == 0 || saving || wizardNavigationDirection != null}
+                  aria-busy={wizardNavigationDirection == "previous"}
                 >
+                  {wizardNavigationDirection == "previous" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : null}
                   Voltar
                 </Button>
 
-                {currentStepIndex < WIZARD_STEP_LABELS.length - 1 ? (
+                {visibleWizardStepIndices.indexOf(currentStepIndex) <
+                visibleWizardStepIndices.length - 1 ? (
                   <Button
                     size="lg"
                     className="px-10 bg-primary hover:bg-primary/90 text-white font-bold shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     onClick={() => {
                       void handleNextStep();
                     }}
-                    disabled={saving}
+                    disabled={saving || wizardNavigationDirection != null}
+                    aria-busy={wizardNavigationDirection == "next"}
                   >
+                    {wizardNavigationDirection == "next" ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : null}
                     Próximo
                   </Button>
                 ) : (
@@ -8658,10 +9090,10 @@ export function AdminChampionshipBracketPage({
                     size="lg"
                     className="px-10 bg-primary hover:bg-primary/90 text-white font-bold shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                     onClick={handleSave}
-                    disabled={isCreateButtonDisabled}
+                    disabled={isCreateButtonDisabled || isCreationCommitted}
                   >
                     {saving ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : null}
-                    Criar campeonato
+                    {isCreationCommitted ? "Jogos já gerados" : "Criar campeonato"}
                   </Button>
                 )}
               </div>
@@ -8675,13 +9107,18 @@ export function AdminChampionshipBracketPage({
                   <div className="border-b border-border/50 pb-4 mb-6">
                     <p className="text-lg font-bold">Formato da temporada</p>
                     <p className="text-sm text-muted-foreground">
-                      Defina como a temporada {selectedChampionship.current_season_year} será
-                      disputada. O formato escolhido passa a dirigir participantes, competições e o
-                      fechamento sazonal.
+                      {canConfigureSeasonDivisionMovements
+                        ? `Defina como a temporada ${selectedChampionship.current_season_year} será disputada. O formato escolhido passa a dirigir participantes, competições e o fechamento sazonal.`
+                        : `Defina como a temporada ${selectedChampionship.current_season_year} será disputada. O formato escolhido organiza as divisões e competições desta edição, sem movimentação sazonal entre divisões.`}
                     </p>
                   </div>
 
-                  <div className="grid gap-6 lg:grid-cols-2">
+                  <div
+                    className={cn(
+                      "grid gap-6",
+                      canConfigureSeasonDivisionMovements ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                    )}
+                  >
                     <div className="space-y-3 rounded-xl border border-border/40 bg-background/30 p-4">
                       <p className="text-sm font-bold">Formato de divisões</p>
                       <RadioGroup
@@ -8689,6 +9126,18 @@ export function AdminChampionshipBracketPage({
                         onValueChange={(value) =>
                           setSeasonSettings((currentSeasonSettings) => {
                             const nextDivisionFormat = value as ChampionshipSeasonDivisionFormat;
+
+                            if (!canConfigureSeasonDivisionMovements) {
+                              return {
+                                ...currentSeasonSettings,
+                                division_format: nextDivisionFormat,
+                                division_settlement_mode:
+                                  ChampionshipSeasonDivisionSettlementMode.NONE,
+                                principal_slots_count: null,
+                                principal_relegation_count: null,
+                                access_promotion_count: null,
+                              };
+                            }
 
                             if (nextDivisionFormat == ChampionshipSeasonDivisionFormat.SEPARATED) {
                               return {
@@ -8735,91 +9184,95 @@ export function AdminChampionshipBracketPage({
                             <p className="text-sm font-semibold">Divisão unificada</p>
                             <p className="text-xs text-muted-foreground">
                               Todas as atléticas jogam juntas na temporada atual e a divisão futura
-                              é definida no encerramento.
+                              {canConfigureSeasonDivisionMovements
+                                ? " é definida no encerramento."
+                                : " não é alterada ao encerrar a temporada."}
                             </p>
                           </div>
                         </label>
                       </RadioGroup>
                     </div>
 
-                    <div className="space-y-4 rounded-xl border border-border/40 bg-background/30 p-4">
-                      <div className="space-y-1">
-                        <p className="text-sm font-bold">Fechamento da temporada</p>
-                        <p className="text-xs text-muted-foreground">
-                          A movimentação de divisões é gerada como prévia e aplicada só após
-                          confirmação administrativa.
-                        </p>
-                      </div>
-
-                      {seasonSettings.division_format ==
-                      ChampionshipSeasonDivisionFormat.SEPARATED ? (
-                        <div className="grid gap-4 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                              Caem da principal
-                            </Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={seasonSettings.principal_relegation_count ?? ""}
-                              onChange={(event) =>
-                                setSeasonSettings((currentSeasonSettings) => ({
-                                  ...currentSeasonSettings,
-                                  principal_relegation_count: event.target.value
-                                    ? Number(event.target.value)
-                                    : null,
-                                }))
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                              Sobem do acesso
-                            </Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={seasonSettings.access_promotion_count ?? ""}
-                              onChange={(event) =>
-                                setSeasonSettings((currentSeasonSettings) => ({
-                                  ...currentSeasonSettings,
-                                  access_promotion_count: event.target.value
-                                    ? Number(event.target.value)
-                                    : null,
-                                }))
-                              }
-                            />
-                          </div>
+                    {canConfigureSeasonDivisionMovements ? (
+                      <div className="space-y-4 rounded-xl border border-border/40 bg-background/30 p-4">
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold">Fechamento da temporada</p>
+                          <p className="text-xs text-muted-foreground">
+                            A movimentação de divisões é gerada como prévia e aplicada só após
+                            confirmação administrativa.
+                          </p>
                         </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                            Vagas na principal
-                          </Label>
-                          <Input
-                            type="number"
-                            min={1}
-                            value={seasonSettings.principal_slots_count ?? ""}
-                            onChange={(event) =>
-                              setSeasonSettings((currentSeasonSettings) => ({
-                                ...currentSeasonSettings,
-                                principal_slots_count: event.target.value
-                                  ? Number(event.target.value)
-                                  : null,
-                              }))
-                            }
-                          />
-                        </div>
-                      )}
 
-                      <div className="rounded-lg border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
                         {seasonSettings.division_format ==
-                        ChampionshipSeasonDivisionFormat.SEPARATED
-                          ? `Prévia esperada: ${seasonSettings.principal_relegation_count ?? 0} caem da principal e ${seasonSettings.access_promotion_count ?? 0} sobem do acesso, filtrando a classificação geral oficial final pela divisão de origem.`
-                          : `Prévia esperada: os ${seasonSettings.principal_slots_count ?? 0} primeiros da classificação geral oficial final formam a divisão principal da próxima temporada.`}
+                        ChampionshipSeasonDivisionFormat.SEPARATED ? (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Caem da principal
+                              </Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={seasonSettings.principal_relegation_count ?? ""}
+                                onChange={(event) =>
+                                  setSeasonSettings((currentSeasonSettings) => ({
+                                    ...currentSeasonSettings,
+                                    principal_relegation_count: event.target.value
+                                      ? Number(event.target.value)
+                                      : null,
+                                  }))
+                                }
+                              />
+                            </div>
+
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Sobem do acesso
+                              </Label>
+                              <Input
+                                type="number"
+                                min={1}
+                                value={seasonSettings.access_promotion_count ?? ""}
+                                onChange={(event) =>
+                                  setSeasonSettings((currentSeasonSettings) => ({
+                                    ...currentSeasonSettings,
+                                    access_promotion_count: event.target.value
+                                      ? Number(event.target.value)
+                                      : null,
+                                  }))
+                                }
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                              Vagas na principal
+                            </Label>
+                            <Input
+                              type="number"
+                              min={1}
+                              value={seasonSettings.principal_slots_count ?? ""}
+                              onChange={(event) =>
+                                setSeasonSettings((currentSeasonSettings) => ({
+                                  ...currentSeasonSettings,
+                                  principal_slots_count: event.target.value
+                                    ? Number(event.target.value)
+                                    : null,
+                                }))
+                              }
+                            />
+                          </div>
+                        )}
+
+                        <div className="rounded-lg border border-border/40 bg-background/40 p-3 text-xs text-muted-foreground">
+                          {seasonSettings.division_format ==
+                          ChampionshipSeasonDivisionFormat.SEPARATED
+                            ? `Prévia esperada: ${seasonSettings.principal_relegation_count ?? 0} caem da principal e ${seasonSettings.access_promotion_count ?? 0} sobem do acesso, filtrando a classificação geral oficial final pela divisão de origem.`
+                            : `Prévia esperada: os ${seasonSettings.principal_slots_count ?? 0} primeiros da classificação geral oficial final formam a divisão principal da próxima temporada.`}
+                        </div>
                       </div>
-                    </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-6 space-y-3 rounded-xl border border-border/40 bg-background/30 p-4">
@@ -12384,16 +12837,16 @@ export function AdminChampionshipBracketPage({
                                               sportOption.sport_id,
                                             ].join("::"),
                                           ) ?? null;
+                                        const planningMode =
+                                          currentTarget == null
+                                            ? "AUTO"
+                                            : (currentTarget.planning_mode ?? "MANUAL");
                                         const effectiveMatchCount =
-                                          (currentTarget?.planning_mode ?? "MANUAL") == "AUTO"
+                                          planningMode == "AUTO"
                                             ? (recommendationLine?.recommended_match_count ?? 0)
                                             : (currentTarget?.planned_match_count ?? 0);
 
-                                        return (
-                                          currentTarget != null &&
-                                          ((currentTarget.planning_mode ?? "MANUAL") == "AUTO" ||
-                                            effectiveMatchCount > 0)
-                                        );
+                                        return planningMode == "AUTO" || effectiveMatchCount > 0;
                                       });
 
                                     const implicitPreferredSportId =
@@ -12641,9 +13094,8 @@ export function AdminChampionshipBracketPage({
                                           <div>
                                             <ChampionshipBracketFieldLabel
                                               label="Jogos planejados por modalidade"
-                                              helpText={`Defina quantos jogos de cada modalidade devem ser programados nesta quadra neste dia. A lista já considera apenas modalidades e naipes com janela jogável nesta data.
+                                              helpText={`No modo Automático, a quantidade considera os jogos necessários no campeonato e a capacidade livre desta quadra neste dia. No modo Manual, informe quantos jogos desta modalidade devem ser programados aqui; deixe vazio ou use zero para não programar jogos nesta quadra/dia.
 
-Campo vazio significa que essa modalidade não terá jogos automáticos nesta quadra neste dia.
 A quantidade inclui todos os naipes da modalidade. Finais programadas manualmente são tratadas separadamente.`}
                                             />
 
@@ -12690,7 +13142,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                   ]),
                                                 );
                                                 const planningMode: ChampionshipBracketCourtSportMatchTargetPlanningMode =
-                                                  currentTarget?.planning_mode ?? "MANUAL";
+                                                  currentTarget == null
+                                                    ? "AUTO"
+                                                    : (currentTarget.planning_mode ?? "MANUAL");
                                                 const effectiveMatchCount =
                                                   planningMode == "AUTO"
                                                     ? (recommendationLine?.recommended_match_count ??
@@ -13723,11 +14177,11 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                           return (
                                             <div
                                               key={`structural-review-day-${reviewDay.date}-court-${court.court_key}`}
-                                              className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-4"
+                                              className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-3"
                                             >
-                                              <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-3">
-                                                <div>
-                                                  <p className="text-sm font-bold">
+                                              <div className="flex flex-col items-center border-b border-border/30 pb-3 text-center">
+                                                <div className="w-full min-w-0">
+                                                  <p className="break-words text-sm font-bold">
                                                     {court.court_name}
                                                   </p>
                                                   <p className="text-[11px] text-muted-foreground">
@@ -13736,7 +14190,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                   </p>
                                                 </div>
 
-                                                <div className="text-right text-[11px] text-muted-foreground">
+                                                <div className="mt-2 flex w-full flex-col items-center text-[11px] text-muted-foreground">
                                                   <p>{court.free_minutes} min disponíveis</p>
                                                   <p>
                                                     {court.planned_collective_minutes} min
@@ -13748,7 +14202,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                               <div className="mt-4 space-y-3">
                                                 <div>
-                                                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                  <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                     Sequência cronológica da quadra
                                                   </p>
 
@@ -13773,63 +14227,61 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                 ),
                                                               )}
                                                             >
-                                                              <div className="flex items-start justify-between gap-2">
-                                                                <div className="min-w-0 flex-1">
-                                                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
-                                                                    <AppBadge
-                                                                      tone={AppBadgeTone.SILVER}
-                                                                      className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                                                                    >
-                                                                      Jogo{" "}
-                                                                      {estimatedEntry.match_number}
-                                                                    </AppBadge>
-                                                                    <AppBadge
-                                                                      tone={AppBadgeTone.AMBER}
-                                                                      className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-                                                                    >
-                                                                      Previsão local
-                                                                    </AppBadge>
+                                                              <div className="flex flex-col items-center gap-2 text-center">
+                                                                <div className="flex w-full min-w-0 flex-col items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                  <AppBadge
+                                                                    tone={AppBadgeTone.SILVER}
+                                                                    className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                  >
+                                                                    Jogo{" "}
+                                                                    {estimatedEntry.match_number}
+                                                                  </AppBadge>
+                                                                  <AppBadge
+                                                                    tone={AppBadgeTone.AMBER}
+                                                                    className="max-w-full whitespace-normal break-words border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                  >
+                                                                    Previsão local
+                                                                  </AppBadge>
+                                                                  <AppBadge
+                                                                    tone={
+                                                                      MATCH_NAIPE_BADGE_TONES[
+                                                                        estimatedEntry.naipe
+                                                                      ]
+                                                                    }
+                                                                    className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
+                                                                  >
+                                                                    {
+                                                                      MATCH_NAIPE_LABELS[
+                                                                        estimatedEntry.naipe
+                                                                      ]
+                                                                    }
+                                                                  </AppBadge>
+                                                                  <span className="max-w-full whitespace-normal break-words rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                    {estimatedEntry.phase_label}
+                                                                  </span>
+                                                                  {estimatedEntry.division ? (
                                                                     <AppBadge
                                                                       tone={
-                                                                        MATCH_NAIPE_BADGE_TONES[
-                                                                          estimatedEntry.naipe
+                                                                        TEAM_DIVISION_BADGE_TONES[
+                                                                          estimatedEntry.division
                                                                         ]
                                                                       }
-                                                                      className="px-1.5 py-0.5 text-[10px] leading-none"
+                                                                      className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                     >
                                                                       {
-                                                                        MATCH_NAIPE_LABELS[
-                                                                          estimatedEntry.naipe
+                                                                        TEAM_DIVISION_LABELS[
+                                                                          estimatedEntry.division
                                                                         ]
                                                                       }
                                                                     </AppBadge>
-                                                                    <span className="rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                                                      {estimatedEntry.phase_label}
-                                                                    </span>
-                                                                    {estimatedEntry.division ? (
-                                                                      <AppBadge
-                                                                        tone={
-                                                                          TEAM_DIVISION_BADGE_TONES[
-                                                                            estimatedEntry.division
-                                                                          ]
-                                                                        }
-                                                                        className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                      >
-                                                                        {
-                                                                          TEAM_DIVISION_LABELS[
-                                                                            estimatedEntry.division
-                                                                          ]
-                                                                        }
-                                                                      </AppBadge>
-                                                                    ) : null}
-                                                                  </div>
+                                                                  ) : null}
 
-                                                                  <p className="mt-1 truncate text-sm font-semibold leading-tight">
+                                                                  <p className="mt-1 w-full whitespace-normal break-words text-sm font-semibold leading-tight">
                                                                     {estimatedEntry.sport_name}
                                                                   </p>
                                                                 </div>
 
-                                                                <div className="shrink-0 text-right">
+                                                                <div className="flex flex-col items-center text-center">
                                                                   <p className="text-sm font-semibold tabular-nums leading-tight">
                                                                     {estimatedEntry.start_time} -{" "}
                                                                     {estimatedEntry.end_time}
@@ -13879,13 +14331,13 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                             )}
                                                           >
                                                             {isScheduleMarker ? (
-                                                              <div className="flex items-center justify-between gap-3">
+                                                              <div className="flex flex-col items-center gap-1 text-center">
                                                                 <p className="text-sm font-semibold">
                                                                   {resolveStructuralReviewEntryTypeLabel(
                                                                     entry,
                                                                   )}
                                                                 </p>
-                                                                <div className="text-right">
+                                                                <div className="flex flex-col items-center">
                                                                   <p className="text-sm font-semibold">
                                                                     {entry.start_time} -{" "}
                                                                     {entry.end_time}
@@ -13896,14 +14348,14 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                 </div>
                                                               </div>
                                                             ) : (
-                                                              <div className="flex items-start justify-between gap-3">
-                                                                <div>
+                                                              <div className="flex flex-col items-center gap-1 text-center">
+                                                                <div className="w-full min-w-0">
                                                                   <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                                     {resolveStructuralReviewEntryTypeLabel(
                                                                       entry,
                                                                     )}
                                                                   </p>
-                                                                  <p className="mt-1 text-sm font-semibold">
+                                                                  <p className="mt-1 whitespace-normal break-words text-sm font-semibold">
                                                                     {entry.type == "FREE_WINDOW"
                                                                       ? "Janela disponível"
                                                                       : (entry.sport_name ??
@@ -13913,7 +14365,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                   </p>
                                                                 </div>
 
-                                                                <div className="text-right">
+                                                                <div className="flex flex-col items-center">
                                                                   <p className="text-sm font-semibold">
                                                                     {entry.start_time} -{" "}
                                                                     {entry.end_time}
@@ -13926,9 +14378,17 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                             )}
 
                                                             {detailParts.length > 0 ? (
-                                                              <p className="mt-2 text-xs text-muted-foreground">
-                                                                {detailParts.join(" • ")}
-                                                              </p>
+                                                              <div className="mt-2 flex flex-col items-center gap-1 text-center text-xs text-muted-foreground">
+                                                                {detailParts.map(
+                                                                  (detailPart, index) => (
+                                                                    <span
+                                                                      key={`${detailPart}-${index}`}
+                                                                    >
+                                                                      {detailPart}
+                                                                    </span>
+                                                                  ),
+                                                                )}
+                                                              </div>
                                                             ) : null}
                                                           </div>
                                                         );
@@ -13984,12 +14444,12 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                 ) : null}
 
                                                 <div>
-                                                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                  <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                     Resumo por modalidade nesta quadra
                                                   </p>
 
                                                   {court.planning_items.length == 0 ? (
-                                                    <div className="rounded-lg border border-dashed border-border/40 px-3 py-3 text-sm text-muted-foreground">
+                                                    <div className="rounded-lg border border-dashed border-border/40 px-3 py-3 text-center text-sm text-muted-foreground">
                                                       Nenhuma modalidade foi planejada para esta
                                                       quadra neste dia.
                                                     </div>
@@ -13998,16 +14458,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                       {court.planning_items.map((planningItem) => (
                                                         <div
                                                           key={`structural-review-day-${reviewDay.date}-court-${court.court_key}-target-summary-${planningItem.sport_id}`}
-                                                          className="rounded-lg border border-border/40 bg-background/50 px-3 py-3"
+                                                          className="rounded-lg border border-border/40 bg-background/50 px-3 py-3 text-center"
                                                         >
-                                                          <div className="flex items-start justify-between gap-3">
-                                                            <div>
-                                                              <p className="text-sm font-semibold">
+                                                          <div className="flex flex-col items-center">
+                                                            <div className="w-full min-w-0">
+                                                              <p className="whitespace-normal break-words text-sm font-semibold">
                                                                 {planningItem.sport_name}
                                                               </p>
                                                               <p className="mt-1 text-xs text-muted-foreground">
                                                                 {planningItem.planned_match_count}{" "}
-                                                                jogo(s) •{" "}
+                                                                jogo(s)
+                                                              </p>
+                                                              <p className="text-xs text-muted-foreground">
                                                                 {
                                                                   planningItem.match_duration_minutes
                                                                 }{" "}
@@ -14015,7 +14477,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                               </p>
                                                             </div>
 
-                                                            <div className="text-right">
+                                                            <div className="mt-2 flex flex-col items-center">
                                                               <p className="text-sm font-semibold">
                                                                 {planningItem.planned_minutes} min
                                                               </p>
@@ -14034,23 +14496,23 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                             </div>
                                                           </div>
 
-                                                          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                                                            <span className="min-w-0 break-words">
+                                                          <div className="mt-2 flex flex-col items-center gap-1 text-center text-[11px] text-muted-foreground">
+                                                            <span className="break-words">
                                                               {planningItem.free_minutes} min
                                                               disponíveis
                                                             </span>
-                                                            <span className="min-w-0 break-words">
+                                                            <span className="break-words">
                                                               {planningItem.remaining_minutes} min
                                                               ainda sobram
                                                             </span>
-                                                            <span className="min-w-0 break-words">
+                                                            <span className="break-words">
                                                               Ainda cabem aprox.{" "}
                                                               {
                                                                 planningItem.additional_match_capacity
                                                               }{" "}
                                                               jogo(s)
                                                             </span>
-                                                            <span className="min-w-0 break-words basis-full">
+                                                            <span className="break-words">
                                                               {planningItem.has_playable_window
                                                                 ? "Data compatível com a modalidade"
                                                                 : "Data incompatível com a modalidade"}
@@ -14079,39 +14541,43 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                         <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                           <div>
                             <p className="text-sm font-semibold">
-                              {hasBlockingExactPreviewDiagnostics
-                                ? "Prévia exata com pendências impeditivas"
-                                : isExactPreviewJobRunning
-                                  ? "Prévia exata em processamento"
-                                  : exactPreviewCache?.status == "FAILED"
-                                    ? "Falha ao calcular a prévia exata"
-                                    : exactPreviewCache?.status == "CANCELLED"
-                                      ? "Cálculo da prévia cancelado"
-                                      : hasValidExactPreviewCache
-                                        ? "Prévia exata validada"
-                                        : exactPreviewCache
-                                          ? "Última simulação exata desatualizada"
-                                          : "Prévia exata manual"}
+                              {hasEmptyExactPreviewForPlannedMatches
+                                ? "Prévia exata sem partidas"
+                                : hasBlockingExactPreviewDiagnostics
+                                  ? "Prévia exata com pendências impeditivas"
+                                  : isExactPreviewJobRunning
+                                    ? "Prévia exata em processamento"
+                                    : exactPreviewCache?.status == "FAILED"
+                                      ? "Falha ao calcular a prévia exata"
+                                      : exactPreviewCache?.status == "CANCELLED"
+                                        ? "Cálculo da prévia cancelado"
+                                        : hasValidExactPreviewCache
+                                          ? "Prévia exata validada"
+                                          : exactPreviewCache
+                                            ? "Última simulação exata desatualizada"
+                                            : "Prévia exata manual"}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              {hasBlockingExactPreviewDiagnostics
-                                ? "A prévia encontrou conflitos impeditivos. Corrija-os e recalcule antes de criar o campeonato."
-                                : isExactPreviewJobRunning
-                                  ? `${exactPreviewCache?.result?.message ?? "O cálculo continua mesmo se esta aba for fechada."}`
-                                  : exactPreviewCache?.status == "FAILED"
-                                    ? (exactPreviewCache.result?.message ??
-                                      "O worker preservou o diagnóstico para uma nova tentativa.")
-                                    : exactPreviewCache?.status == "CANCELLED"
-                                      ? "Inicie um novo cálculo quando desejar."
-                                      : hasValidExactPreviewCache
-                                        ? exactPreviewGeneratedAtLabel
-                                          ? operationalPreview
-                                            ? `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. A criação confirmará a mesma programação em transação.`
-                                            : `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. Calcule novamente para exibir a cronologia.`
-                                          : "A criação confirmará esta programação em transação."
-                                        : exactPreviewCache
-                                          ? "O payload mudou após a última simulação. Recalcule antes de confiar nesta seção."
-                                          : "Calcule a programação exata para liberar a criação do campeonato."}
+                              {hasEmptyExactPreviewForPlannedMatches
+                                ? "A revisão estrutural prevê partidas, mas a prévia retornou zero jogos. Atualize a programação exata antes de criar o campeonato."
+                                : hasBlockingExactPreviewDiagnostics
+                                  ? "A prévia encontrou conflitos impeditivos. Corrija-os e recalcule antes de criar o campeonato."
+                                  : isExactPreviewJobRunning
+                                    ? `${exactPreviewCache?.result?.message ?? "O cálculo continua mesmo se esta aba for fechada."}`
+                                    : exactPreviewCache?.status == "FAILED"
+                                      ? (exactPreviewCache.result?.message ??
+                                        "O worker preservou o diagnóstico para uma nova tentativa.")
+                                      : exactPreviewCache?.status == "CANCELLED"
+                                        ? "Inicie um novo cálculo quando desejar."
+                                        : hasValidExactPreviewCache
+                                          ? exactPreviewGeneratedAtLabel
+                                            ? operationalPreview?.days.length
+                                              ? `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. A criação confirmará a mesma programação em transação.`
+                                              : `Prévia válida gerada em ${exactPreviewGeneratedAtLabel}. Calcule novamente para exibir a cronologia.`
+                                            : "A criação confirmará esta programação em transação."
+                                          : exactPreviewCache
+                                            ? "O payload mudou após a última simulação. Recalcule antes de confiar nesta seção."
+                                            : "Calcule a programação exata para liberar a criação do campeonato."}
                             </p>
                           </div>
                         </div>
@@ -14213,7 +14679,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                           </Alert>
                         ) : null}
 
-                        {operationalPreview?.summary ? (
+                        {operationalPreview?.days.length ? (
                           <div className="space-y-6">
                             {operationalPreview.message ? (
                               <Alert>
@@ -14354,9 +14820,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                         key={`preview-day-${previewDay.date}-court-${court.court_key}`}
                                                         className="min-w-0 overflow-hidden rounded-xl border border-border/40 bg-background/40 p-4"
                                                       >
-                                                        <div className="flex items-start justify-between gap-3 border-b border-border/30 pb-3">
-                                                          <div>
-                                                            <p className="text-sm font-bold">
+                                                        <div className="flex flex-col items-center border-b border-border/30 pb-3 text-center">
+                                                          <div className="w-full min-w-0">
+                                                            <p className="break-words text-sm font-bold">
                                                               {court.court_name}
                                                             </p>
                                                             <p className="text-[11px] text-muted-foreground">
@@ -14369,7 +14835,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                             </p>
                                                           </div>
 
-                                                          <div className="text-right text-[11px] text-muted-foreground">
+                                                          <div className="mt-2 flex w-full flex-col items-center text-[11px] text-muted-foreground">
                                                             <p>
                                                               {court.available_minutes} min
                                                               disponíveis
@@ -14463,67 +14929,64 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                         ),
                                                                       )}
                                                                     >
-                                                                      <div className="flex items-start justify-between gap-2">
-                                                                        <div className="min-w-0 flex-1">
-                                                                          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                      <div className="flex flex-col items-center gap-2 text-center">
+                                                                        <div className="flex w-full min-w-0 flex-col items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
+                                                                          <AppBadge
+                                                                            tone={
+                                                                              AppBadgeTone.SILVER
+                                                                            }
+                                                                            className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                          >
+                                                                            Jogo{" "}
+                                                                            {displayedMatchNumber ??
+                                                                              "—"}
+                                                                          </AppBadge>
+                                                                          <AppBadge
+                                                                            tone={
+                                                                              AppBadgeTone.AMBER
+                                                                            }
+                                                                            className="max-w-full whitespace-normal break-words border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                          >
+                                                                            Programação exata
+                                                                          </AppBadge>
+                                                                          {entry.naipe ? (
                                                                             <AppBadge
                                                                               tone={
-                                                                                AppBadgeTone.SILVER
+                                                                                MATCH_NAIPE_BADGE_TONES[
+                                                                                  entry.naipe
+                                                                                ]
                                                                               }
-                                                                              className="border-slate-300 bg-slate-100 px-1.5 py-0.5 text-[10px] leading-none text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                              className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                             >
-                                                                              Jogo{" "}
-                                                                              {displayedMatchNumber ??
-                                                                                "—"}
+                                                                              {
+                                                                                MATCH_NAIPE_LABELS[
+                                                                                  entry.naipe
+                                                                                ]
+                                                                              }
                                                                             </AppBadge>
+                                                                          ) : null}
+                                                                          {phaseLabel ? (
+                                                                            <span className="max-w-full whitespace-normal break-words rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-[10px] leading-tight text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                              {phaseLabel}
+                                                                            </span>
+                                                                          ) : null}
+                                                                          {entry.division ? (
                                                                             <AppBadge
                                                                               tone={
-                                                                                AppBadgeTone.AMBER
+                                                                                TEAM_DIVISION_BADGE_TONES[
+                                                                                  entry.division
+                                                                                ]
                                                                               }
-                                                                              className="border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[9px] leading-none text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                              className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                             >
-                                                                              Programação exata
+                                                                              {
+                                                                                TEAM_DIVISION_LABELS[
+                                                                                  entry.division
+                                                                                ]
+                                                                              }
                                                                             </AppBadge>
-                                                                            {entry.naipe ? (
-                                                                              <AppBadge
-                                                                                tone={
-                                                                                  MATCH_NAIPE_BADGE_TONES[
-                                                                                    entry.naipe
-                                                                                  ]
-                                                                                }
-                                                                                className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                              >
-                                                                                {
-                                                                                  MATCH_NAIPE_LABELS[
-                                                                                    entry.naipe
-                                                                                  ]
-                                                                                }
-                                                                              </AppBadge>
-                                                                            ) : null}
-                                                                            {phaseLabel ? (
-                                                                              <span className="inline-flex items-center whitespace-nowrap rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-[10px] leading-none text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
-                                                                                {phaseLabel}
-                                                                              </span>
-                                                                            ) : null}
-                                                                            {entry.division ? (
-                                                                              <AppBadge
-                                                                                tone={
-                                                                                  TEAM_DIVISION_BADGE_TONES[
-                                                                                    entry.division
-                                                                                  ]
-                                                                                }
-                                                                                className="px-1.5 py-0.5 text-[10px] leading-none"
-                                                                              >
-                                                                                {
-                                                                                  TEAM_DIVISION_LABELS[
-                                                                                    entry.division
-                                                                                  ]
-                                                                                }
-                                                                              </AppBadge>
-                                                                            ) : null}
-                                                                          </div>
-
-                                                                          <p className="mt-1 truncate text-sm font-semibold leading-tight">
+                                                                          ) : null}
+                                                                          <p className="mt-1 w-full whitespace-normal break-words text-sm font-semibold leading-tight">
                                                                             {matchTeamsLabel ??
                                                                               entry.sport_name ??
                                                                               "Jogo"}
@@ -14531,13 +14994,13 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                                                           {matchTeamsLabel &&
                                                                           entry.sport_name ? (
-                                                                            <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                                                            <p className="w-full whitespace-normal break-words text-[10px] text-muted-foreground">
                                                                               {entry.sport_name}
                                                                             </p>
                                                                           ) : null}
 
                                                                           {entry.reason ? (
-                                                                            <p className="mt-1 text-[10px] text-muted-foreground">
+                                                                            <p className="mt-1 w-full whitespace-normal break-words text-[10px] text-muted-foreground">
                                                                               {resolveOperationalPreviewMatchReason(
                                                                                 {
                                                                                   reason:
@@ -14556,7 +15019,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                           ) : null}
                                                                         </div>
 
-                                                                        <div className="shrink-0 text-right">
+                                                                        <div className="flex flex-col items-center text-center">
                                                                           <p className="text-sm font-semibold tabular-nums leading-tight">
                                                                             {entry.start_time} -{" "}
                                                                             {entry.end_time}
@@ -14588,10 +15051,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                   >
                                                                     <div
                                                                       className={cn(
-                                                                        "flex gap-3",
-                                                                        isScheduleMarker
-                                                                          ? "items-center justify-between"
-                                                                          : "items-start justify-between",
+                                                                        "flex flex-col items-center gap-1 text-center",
                                                                       )}
                                                                     >
                                                                       {isScheduleMarker ? (
@@ -14605,21 +15065,21 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                               )}
                                                                         </p>
                                                                       ) : (
-                                                                        <div>
-                                                                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                        <div className="w-full min-w-0">
+                                                                          <p className="whitespace-normal break-words text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                                             {resolveOperationalPreviewEntryTypeLabel(
                                                                               entry,
                                                                             )}
                                                                           </p>
-                                                                          <p className="mt-1 text-sm font-semibold">
+                                                                          <p className="mt-1 whitespace-normal break-words text-sm font-semibold">
                                                                             {entry.sport_name ??
                                                                               "Sessão individual"}
                                                                           </p>
                                                                         </div>
                                                                       )}
 
-                                                                      <div className="text-right">
-                                                                        <p className="text-sm font-semibold">
+                                                                      <div className="flex flex-col items-center">
+                                                                        <p className="whitespace-normal break-words text-sm font-semibold">
                                                                           {entry.start_time} -{" "}
                                                                           {entry.end_time}
                                                                         </p>
@@ -14632,11 +15092,18 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                                                     {!isScheduleMarker &&
                                                                     matchDetailParts.length > 0 ? (
-                                                                      <p className="mt-2 text-xs text-muted-foreground">
-                                                                        {matchDetailParts.join(
-                                                                          " • ",
+                                                                      <div className="mt-2 flex flex-col items-center gap-1 text-center text-xs text-muted-foreground">
+                                                                        {matchDetailParts.map(
+                                                                          (matchDetailPart) => (
+                                                                            <span
+                                                                              key={matchDetailPart}
+                                                                              className="whitespace-normal break-words"
+                                                                            >
+                                                                              {matchDetailPart}
+                                                                            </span>
+                                                                          ),
                                                                         )}
-                                                                      </p>
+                                                                      </div>
                                                                     ) : null}
 
                                                                     {!isScheduleMarker &&
@@ -15002,7 +15469,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           onConfirm={handleDrawConfirm}
           onResultReady={handleDrawResultReady}
           drawnTeamId={pendingDrawResult?.teamId ?? null}
-          drawingTeamIds={drawingTeamIds}
+          drawingTeamIds={pendingDrawResult?.drawingTeamIds ?? []}
           teamNameById={teamNameById}
           competitionOption={drawingCompetitionOption}
           groupNumber={pendingDrawResult?.groupNumber ?? null}

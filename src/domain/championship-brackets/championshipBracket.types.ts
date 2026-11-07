@@ -49,15 +49,9 @@ export interface ChampionshipBracketCompetitionInput {
 }
 
 export type ChampionshipBracketCourtSequenceMode =
-  | "FLEXIBLE"
-  | "GROUP_NAIPE"
-  | "ALTERNATE_NAIPE"
-  | "GROUP_DIVISION";
+  "FLEXIBLE" | "GROUP_NAIPE" | "ALTERNATE_NAIPE" | "GROUP_DIVISION";
 
-export type ChampionshipBracketMatchNumberingMode =
-  | "COURT"
-  | "SPORT_NAIPE"
-  | "SPORT";
+export type ChampionshipBracketMatchNumberingMode = "COURT" | "SPORT_NAIPE" | "SPORT";
 
 export interface ChampionshipBracketCourtSportPreferenceInput {
   preferred_sport_id: string;
@@ -67,9 +61,7 @@ export interface ChampionshipBracketCourtSportPreferenceInput {
   alternate_naipe_after_exclusive_knockout_phase: boolean;
 }
 
-export type ChampionshipBracketCourtSportMatchTargetPlanningMode =
-  | "MANUAL"
-  | "AUTO";
+export type ChampionshipBracketCourtSportMatchTargetPlanningMode = "MANUAL" | "AUTO";
 
 export interface ChampionshipBracketCourtSportMatchTargetInput {
   sport_id: string;
@@ -144,10 +136,7 @@ export interface ChampionshipBracketTeamCompetitionAvailabilityInput {
   enabled: boolean;
 }
 
-export type ChampionshipBracketAvailabilityMode =
-  | "UNAVAILABLE"
-  | "FULL_DAY"
-  | "CUSTOM";
+export type ChampionshipBracketAvailabilityMode = "UNAVAILABLE" | "FULL_DAY" | "CUSTOM";
 
 export interface ChampionshipBracketAvailabilityWindowInput {
   start_time: string;
@@ -272,24 +261,12 @@ export interface ChampionshipBracketSetupFormValues {
 }
 
 export type ChampionshipBracketPreviewTimelineEntryType =
-  | "MATCH"
-  | "BREAK"
-  | "RESERVATION"
-  | "INDIVIDUAL_SESSION"
-  | "EMPTY";
+  "MATCH" | "BREAK" | "RESERVATION" | "INDIVIDUAL_SESSION" | "EMPTY";
 
-export type ChampionshipBracketPreviewMatchKind =
-  | "GROUP_STAGE"
-  | "KNOCKOUT"
-  | "MANUAL_FINAL";
+export type ChampionshipBracketPreviewMatchKind = "GROUP_STAGE" | "KNOCKOUT" | "MANUAL_FINAL";
 
 export type ChampionshipBracketPreviewPhase =
-  | "GROUP_STAGE"
-  | "ROUND_OF_32"
-  | "ROUND_OF_16"
-  | "QUARTERFINAL"
-  | "SEMIFINAL"
-  | "FINAL";
+  "GROUP_STAGE" | "ROUND_OF_32" | "ROUND_OF_16" | "QUARTERFINAL" | "SEMIFINAL" | "FINAL";
 
 export type ChampionshipBracketPreviewDiagnosticSeverity = "WARNING" | "ERROR";
 
@@ -501,6 +478,7 @@ export interface ChampionshipBracketExactPreviewCache {
   /** Só é verdadeiro quando a prévia não contém pendências impeditivas. */
   is_valid_for_creation: boolean;
   generated_at: string;
+  preview_match_count: number;
   /**
    * Mantido apenas durante a sessão para renderizar a cronologia calculada.
    * O rascunho persiste somente as assinaturas, nunca a lista temporária de jogos.
@@ -588,18 +566,11 @@ export interface ChampionshipBracketReviewConfigurationSummary {
 }
 
 export type ChampionshipBracketStructuralReviewTimelineEntryType =
-  | "BREAK"
-  | "RESOURCE_LOCK"
-  | "INDIVIDUAL_SESSION"
-  | "MANUAL_FINAL_BLOCK"
-  | "FREE_WINDOW";
+  "BREAK" | "RESOURCE_LOCK" | "INDIVIDUAL_SESSION" | "MANUAL_FINAL_BLOCK" | "FREE_WINDOW";
 
-export type ChampionshipBracketStructuralReviewPlanningItemType =
-  "SPORT_TARGET";
+export type ChampionshipBracketStructuralReviewPlanningItemType = "SPORT_TARGET";
 
-export type ChampionshipBracketStructuralReviewPlanningStatus =
-  | "WITHIN_CAPACITY"
-  | "OVERFLOW";
+export type ChampionshipBracketStructuralReviewPlanningStatus = "WITHIN_CAPACITY" | "OVERFLOW";
 
 export interface ChampionshipBracketStructuralReviewDiagnostic {
   code: string;
@@ -846,10 +817,7 @@ export interface ChampionshipBracketCompetitionConfigDraft {
   knockout_pairing_mode: ChampionshipKnockoutPairingMode;
 }
 
-export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<
-  string,
-  string[]
->;
+export type ChampionshipBracketGroupOrderedTeamIdsByGroupNumberDraft = Record<string, string[]>;
 
 export interface ChampionshipBracketScheduleCourtDraft {
   id: string;
@@ -891,10 +859,7 @@ export interface ChampionshipBracketWizardDraftFormValues {
   should_apply_modalities_to_all_teams: boolean;
   should_apply_naipes_to_all_teams: boolean;
   should_replicate_previous_schedule_day: boolean;
-  competition_config_by_key: Record<
-    string,
-    ChampionshipBracketCompetitionConfigDraft
-  >;
+  competition_config_by_key: Record<string, ChampionshipBracketCompetitionConfigDraft>;
   group_assignments_by_competition_key: Record<string, Record<string, number>>;
   group_order_by_competition_key: Record<
     string,
@@ -1024,11 +989,7 @@ export interface ScheduledMatchLogisticsUpdateInput {
 export type ManualMatchRelocationPosition = "START" | "END" | "SLOT";
 
 export type ManualMatchRelocationReason =
-  | "WEATHER"
-  | "COURT_UNAVAILABLE"
-  | "OPERATIONAL_DELAY"
-  | "SAFETY"
-  | "OTHER";
+  "WEATHER" | "COURT_UNAVAILABLE" | "OPERATIONAL_DELAY" | "SAFETY" | "OTHER";
 
 export interface ManualMatchRelocationInput {
   match_ids: string[];
@@ -1054,8 +1015,7 @@ export interface ManualMatchRelocationSlot {
   is_projected_from_live_match: boolean;
 }
 
-export interface ManualMatchRelocationSlotPreview
-  extends ManualMatchRelocationPreview {
+export interface ManualMatchRelocationSlotPreview extends ManualMatchRelocationPreview {
   slots: ManualMatchRelocationSlot[];
 }
 
@@ -1130,9 +1090,7 @@ export interface ManualMatchRelocationPreview {
 
 export type DayScheduleReorganizationStrategy = "START" | "END" | "AUTO" | "MANUAL";
 
-export type DayScheduleReorganizationBreakPolicy =
-  | "KEEP_BEFORE_KNOCKOUT"
-  | "REMOVE";
+export type DayScheduleReorganizationBreakPolicy = "KEEP_BEFORE_KNOCKOUT" | "REMOVE";
 
 export interface DayScheduleReorganizationInput {
   match_ids: string[];
@@ -1167,8 +1125,10 @@ export interface DayScheduleReorganizationBreakPreview {
   };
 }
 
-export interface DayScheduleReorganizationPreview
-  extends Omit<ManualMatchRelocationPreview, "notes"> {
+export interface DayScheduleReorganizationPreview extends Omit<
+  ManualMatchRelocationPreview,
+  "notes"
+> {
   strategy: DayScheduleReorganizationStrategy;
   break: DayScheduleReorganizationBreakPreview;
 }

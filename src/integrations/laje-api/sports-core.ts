@@ -538,6 +538,18 @@ export async function resetSportsCoreChampionshipSeason(
   );
 }
 
+export async function resetSportsCoreChampionshipSeasonToPlanning(
+  championshipId: string,
+  seasonYear: number,
+  accessToken: string,
+): Promise<void> {
+  await lajeApiRequest<void>(
+    `/championships/${championshipId}/seasons/${seasonYear}/reset-to-planning`,
+    { method: "POST" },
+    accessToken,
+  );
+}
+
 function toChampionshipSeasonSettings(row: Record<string, unknown>): ChampionshipSeasonSettings {
   return {
     id: String(row.id),

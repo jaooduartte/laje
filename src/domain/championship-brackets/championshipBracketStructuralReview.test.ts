@@ -33,31 +33,23 @@ function buildTeam(id: string, name: string): Team {
   };
 }
 
-function buildChampionshipSport(
-  overrides: Partial<ChampionshipSport> = {},
-): ChampionshipSport {
+function buildChampionshipSport(overrides: Partial<ChampionshipSport> = {}): ChampionshipSport {
   return {
     id: overrides.id ?? "championship-sport-1",
     championship_id: overrides.championship_id ?? "championship-1",
     sport_id: overrides.sport_id ?? "sport-1",
-    naipe_mode:
-      overrides.naipe_mode ?? ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+    naipe_mode: overrides.naipe_mode ?? ChampionshipSportNaipeMode.MASCULINO_FEMININO,
     result_rule: overrides.result_rule ?? ChampionshipSportResultRule.POINTS,
     supports_cards: overrides.supports_cards ?? false,
-    tie_breaker_rule:
-      overrides.tie_breaker_rule ??
-      ChampionshipSportTieBreakerRule.BEACH_SOCCER,
-    default_match_duration_minutes:
-      overrides.default_match_duration_minutes ?? 30,
-    show_estimated_start_time_on_cards:
-      overrides.show_estimated_start_time_on_cards ?? false,
+    tie_breaker_rule: overrides.tie_breaker_rule ?? ChampionshipSportTieBreakerRule.BEACH_SOCCER,
+    default_match_duration_minutes: overrides.default_match_duration_minutes ?? 30,
+    show_estimated_start_time_on_cards: overrides.show_estimated_start_time_on_cards ?? false,
     points_win: overrides.points_win ?? 3,
     points_draw: overrides.points_draw ?? 1,
     points_loss: overrides.points_loss ?? 0,
     created_at: overrides.created_at ?? "2026-08-01T00:00:00.000Z",
     walkover_winner_points: overrides.walkover_winner_points ?? 3,
-    awards_include_knockout_phase:
-      overrides.awards_include_knockout_phase ?? true,
+    awards_include_knockout_phase: overrides.awards_include_knockout_phase ?? true,
     supports_individual_awards: overrides.supports_individual_awards ?? true,
     sports: overrides.sports ?? {
       id: overrides.sport_id ?? "sport-1",
@@ -96,8 +88,7 @@ function buildPayload(
   return {
     season_settings: overrides.season_settings ?? {
       division_format: ChampionshipSeasonDivisionFormat.SEPARATED,
-      division_settlement_mode:
-        ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
+      division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.PROMOTION_RELEGATION,
       principal_slots_count: null,
       principal_relegation_count: 2,
       access_promotion_count: 2,
@@ -174,32 +165,30 @@ function buildPayload(
         ],
       },
     ],
-    competition_date_availability:
-      overrides.competition_date_availability ?? [
-        {
-          competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
-          date: "2026-08-29",
-          mode: "FULL_DAY",
-          windows: [],
-        },
-      ],
-    team_competition_date_availability:
-      overrides.team_competition_date_availability ?? [
-        {
-          team_id: "team-1",
-          competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
-          date: "2026-08-29",
-          mode: "FULL_DAY",
-          windows: [],
-        },
-        {
-          team_id: "team-2",
-          competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
-          date: "2026-08-29",
-          mode: "FULL_DAY",
-          windows: [],
-        },
-      ],
+    competition_date_availability: overrides.competition_date_availability ?? [
+      {
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ],
+    team_competition_date_availability: overrides.team_competition_date_availability ?? [
+      {
+        team_id: "team-1",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+      {
+        team_id: "team-2",
+        competition_key: "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      },
+    ],
     individual_event_configs: overrides.individual_event_configs ?? [],
     individual_session_configs: overrides.individual_session_configs ?? [],
     resource_locks: overrides.resource_locks ?? [],
@@ -245,10 +234,7 @@ function buildDraftScheduleDaysFromPayload(
 }
 
 function buildStructuralScheduleSlotsScenario() {
-  const participantIds = Array.from(
-    { length: 8 },
-    (_, index) => `team-${index + 1}`,
-  );
+  const participantIds = Array.from({ length: 8 }, (_, index) => `team-${index + 1}`);
   const payload = buildPayload({
     participants: participantIds.map((team_id) => ({
       team_id,
@@ -417,12 +403,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
   it("resume jogos coletivos com final e sessões individuais por naipe e divisão", () => {
     const summary = resolveChampionshipBracketReviewConfigurationSummary({
       payload: buildPayload({
-        participants: [
-          "team-1",
-          "team-2",
-          "team-3",
-          "team-4",
-        ].map((team_id) => ({
+        participants: ["team-1", "team-2", "team-3", "team-4"].map((team_id) => ({
           team_id,
           modalities: [
             {
@@ -702,13 +683,101 @@ describe("resolveChampionshipBracketStructuralReview", () => {
 
     expect(recommendationLine?.planning_mode).toBe("AUTO");
     expect(recommendationLine?.recommended_match_count).toBeGreaterThan(0);
-    expect(recommendationLine?.effective_match_count).toBe(
-      sportSummary?.required_match_count,
-    );
-    expect(sportSummary?.resolved_match_count).toBe(
-      sportSummary?.required_match_count,
-    );
+    expect(recommendationLine?.effective_match_count).toBe(sportSummary?.required_match_count);
+    expect(sportSummary?.resolved_match_count).toBe(sportSummary?.required_match_count);
     expect(sportSummary?.excess_match_count).toBe(0);
+  });
+
+  it("estima jogos antes do sorteio e recomenda Automático por padrão", () => {
+    const participantIds = ["team-1", "team-2", "team-3", "team-4"];
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const payload = buildPayload({
+      participants: participantIds.map((team_id) => ({
+        team_id,
+        modalities: [
+          {
+            sport_id: "sport-1",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        ],
+      })),
+      competitions: [
+        {
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          groups_count: 2,
+          qualifiers_per_group: 1,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+          third_place_mode: BracketThirdPlaceMode.NONE,
+          groups: [
+            { group_number: 1, team_ids: [] },
+            { group_number: 2, team_ids: [] },
+          ],
+        },
+      ],
+      schedule_days: [
+        {
+          date: "2026-08-29",
+          start_time: "08:00",
+          end_time: "18:00",
+          break_start_time: "12:00",
+          break_end_time: "13:00",
+          locations: [
+            {
+              location_key: "loc-1",
+              name: "Ginásio Central",
+              position: 1,
+              courts: [
+                {
+                  court_key: "court-1",
+                  name: "Quadra 1",
+                  position: 1,
+                  sport_ids: ["sport-1"],
+                  sport_match_targets: [],
+                  sport_preference: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      team_competition_date_availability: participantIds.map((team_id) => ({
+        team_id,
+        competition_key: competitionKey,
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      })),
+    });
+
+    const result = resolveChampionshipBracketSportMatchTargetRecommendations({
+      scheduleDays: buildDraftScheduleDaysFromPayload(payload),
+      competitions: payload.competitions,
+      participants: payload.participants,
+      competitionDateAvailability: payload.competition_date_availability,
+      individualSessionConfigs: payload.individual_session_configs,
+      resourceLocks: payload.resource_locks,
+      knockoutProgramBlocks: payload.knockout_program_blocks,
+      championshipSports: sports,
+    });
+
+    expect(result.competition_summaries[0]).toEqual(
+      expect.objectContaining({
+        required_match_count: 3,
+        resolved_match_count: 3,
+        shortage_match_count: 0,
+      }),
+    );
+    expect(result.line_recommendations[0]).toEqual(
+      expect.objectContaining({
+        planning_mode: "AUTO",
+        recommended_match_count: 3,
+        effective_match_count: 3,
+      }),
+    );
   });
 
   it("expõe o saldo por naipe/divisão quando a modalidade fica desequilibrada", () => {
@@ -802,8 +871,8 @@ describe("resolveChampionshipBracketStructuralReview", () => {
                     preferred_sport_id: "sport-1",
                     preferred_naipe: MatchNaipe.FEMININO,
                     preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
-              sequence_mode: "GROUP_NAIPE",
-              alternate_naipe_after_exclusive_knockout_phase: false,
+                    sequence_mode: "GROUP_NAIPE",
+                    alternate_naipe_after_exclusive_knockout_phase: false,
                   },
                 },
               ],
@@ -877,14 +946,10 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     });
 
     const femininoSummary = result.competition_summaries.find(
-      (summary) =>
-        summary.competition_key ==
-        "sport-1::FEMININO::DIVISAO_PRINCIPAL",
+      (summary) => summary.competition_key == "sport-1::FEMININO::DIVISAO_PRINCIPAL",
     );
     const masculinoSummary = result.competition_summaries.find(
-      (summary) =>
-        summary.competition_key ==
-        "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
+      (summary) => summary.competition_key == "sport-1::MASCULINO::DIVISAO_PRINCIPAL",
     );
 
     expect(femininoSummary?.resolved_match_count).toBe(1);
@@ -1000,46 +1065,42 @@ describe("resolveChampionshipBracketStructuralReview", () => {
         },
       ],
     });
-    const baseResult = resolveChampionshipBracketSportMatchTargetRecommendations(
-      {
-        scheduleDays,
-        competitions: basePayload.competitions,
-        participants: basePayload.participants,
-        competitionDateAvailability: basePayload.competition_date_availability,
-        individualSessionConfigs: basePayload.individual_session_configs,
-        resourceLocks: basePayload.resource_locks,
-        knockoutProgramBlocks: [],
-        championshipSports: sports,
-      },
-    );
-    const resultWithManualFinal = resolveChampionshipBracketSportMatchTargetRecommendations(
-      {
-        scheduleDays,
-        competitions: basePayload.competitions,
-        participants: basePayload.participants,
-        competitionDateAvailability: basePayload.competition_date_availability,
-        individualSessionConfigs: basePayload.individual_session_configs,
-        resourceLocks: basePayload.resource_locks,
-        knockoutProgramBlocks: [
-          {
-            date: "2026-08-29",
-            start_time: "13:00",
-            end_time: "18:00",
-            location_key: "loc-1",
-            court_key: "court-1",
-            location_name: "Ginásio Central",
-            court_name: "Quadra 1",
-            sport_id: "sport-1",
-            phase: "FINAL",
-            division_scope: "ALL",
-            naipe_sequence: [MatchNaipe.MASCULINO],
-            match_duration_minutes_override: 60,
-            display_order: 1,
-          },
-        ],
-        championshipSports: sports,
-      },
-    );
+    const baseResult = resolveChampionshipBracketSportMatchTargetRecommendations({
+      scheduleDays,
+      competitions: basePayload.competitions,
+      participants: basePayload.participants,
+      competitionDateAvailability: basePayload.competition_date_availability,
+      individualSessionConfigs: basePayload.individual_session_configs,
+      resourceLocks: basePayload.resource_locks,
+      knockoutProgramBlocks: [],
+      championshipSports: sports,
+    });
+    const resultWithManualFinal = resolveChampionshipBracketSportMatchTargetRecommendations({
+      scheduleDays,
+      competitions: basePayload.competitions,
+      participants: basePayload.participants,
+      competitionDateAvailability: basePayload.competition_date_availability,
+      individualSessionConfigs: basePayload.individual_session_configs,
+      resourceLocks: basePayload.resource_locks,
+      knockoutProgramBlocks: [
+        {
+          date: "2026-08-29",
+          start_time: "13:00",
+          end_time: "18:00",
+          location_key: "loc-1",
+          court_key: "court-1",
+          location_name: "Ginásio Central",
+          court_name: "Quadra 1",
+          sport_id: "sport-1",
+          phase: "FINAL",
+          division_scope: "ALL",
+          naipe_sequence: [MatchNaipe.MASCULINO],
+          match_duration_minutes_override: 60,
+          display_order: 1,
+        },
+      ],
+      championshipSports: sports,
+    });
 
     expect(resultWithManualFinal.sport_summaries[0]?.required_match_count).toBe(
       baseResult.sport_summaries[0]?.required_match_count,
@@ -1131,9 +1192,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     });
 
     expect(
-      review.diagnostics.some(
-        (diagnostic) => diagnostic.code == "STRUCTURAL_FIXED_BLOCK_CONFLICT",
-      ),
+      review.diagnostics.some((diagnostic) => diagnostic.code == "STRUCTURAL_FIXED_BLOCK_CONFLICT"),
     ).toBe(false);
   });
 
@@ -1150,13 +1209,9 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     expect(review.days[0]?.locations[0]?.courts[0]?.planning_items[0]?.status).toBe(
       "WITHIN_CAPACITY",
     );
+    expect(review.days[0]?.locations[0]?.courts[0]?.planning_items[0]?.remaining_minutes).toBe(420);
     expect(
-      review.days[0]?.locations[0]?.courts[0]?.planning_items[0]
-        ?.remaining_minutes,
-    ).toBe(420);
-    expect(
-      review.days[0]?.locations[0]?.courts[0]?.planning_items[0]
-        ?.additional_match_capacity,
+      review.days[0]?.locations[0]?.courts[0]?.planning_items[0]?.additional_match_capacity,
     ).toBe(14);
   });
 
@@ -1378,26 +1433,14 @@ describe("resolveChampionshipBracketStructuralReview", () => {
         ],
       }),
       championshipSports: sports,
-      teams: [
-        ...teams,
-        buildTeam("team-3", "Atlética C"),
-        buildTeam("team-4", "Atlética D"),
-      ],
+      teams: [...teams, buildTeam("team-3", "Atlética C"), buildTeam("team-4", "Atlética D")],
     });
 
-    const firstDayEntries =
-      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
-    const secondDayEntries =
-      review.days[1]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
+    const firstDayEntries = review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
+    const secondDayEntries = review.days[1]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
 
-    expect(firstDayEntries.map((entry) => entry.phase)).toEqual([
-      "GROUP_STAGE",
-      "GROUP_STAGE",
-    ]);
-    expect(secondDayEntries.map((entry) => entry.phase)).toEqual([
-      "SEMIFINAL",
-      "SEMIFINAL",
-    ]);
+    expect(firstDayEntries.map((entry) => entry.phase)).toEqual(["GROUP_STAGE", "GROUP_STAGE"]);
+    expect(secondDayEntries.map((entry) => entry.phase)).toEqual(["SEMIFINAL", "SEMIFINAL"]);
     expect(
       review.days
         .flatMap((day) => day.locations)
@@ -1405,6 +1448,151 @@ describe("resolveChampionshipBracketStructuralReview", () => {
         .flatMap((court) => court.estimated_match_entries)
         .some((entry) => entry.phase == "FINAL"),
     ).toBe(false);
+  });
+
+  it("projeta a final automaticamente quando não existe bloco manual", () => {
+    const participantIds = ["team-1", "team-2", "team-3", "team-4"];
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const payload = buildPayload({
+      participants: participantIds.map((team_id) => ({
+        team_id,
+        modalities: [
+          {
+            sport_id: "sport-1",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        ],
+      })),
+      competitions: [
+        {
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          groups_count: 2,
+          qualifiers_per_group: 2,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+          third_place_mode: BracketThirdPlaceMode.NONE,
+          groups: [
+            { group_number: 1, team_ids: ["team-1", "team-2"] },
+            { group_number: 2, team_ids: ["team-3", "team-4"] },
+          ],
+        },
+      ],
+      schedule_days: [
+        {
+          date: "2026-08-29",
+          start_time: "08:00",
+          end_time: "18:00",
+          break_start_time: null,
+          break_end_time: null,
+          locations: [
+            {
+              location_key: "loc-1",
+              name: "Ginásio Central",
+              position: 1,
+              courts: [
+                {
+                  court_key: "court-1",
+                  name: "Quadra 1",
+                  position: 1,
+                  sport_ids: ["sport-1"],
+                  sport_match_targets: [],
+                  sport_preference: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      competition_date_availability: [
+        {
+          competition_key: competitionKey,
+          date: "2026-08-29",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+      ],
+      team_competition_date_availability: participantIds.map((team_id) => ({
+        team_id,
+        competition_key: competitionKey,
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      })),
+      knockout_program_blocks: [],
+    });
+    const recommendation = resolveChampionshipBracketSportMatchTargetRecommendations({
+      scheduleDays: buildDraftScheduleDaysFromPayload(payload, {
+        "court-1": [
+          {
+            sport_id: "sport-1",
+            planned_match_count: 0,
+            planning_mode: "AUTO",
+          },
+        ],
+      }),
+      competitions: payload.competitions,
+      participants: payload.participants,
+      competitionDateAvailability: payload.competition_date_availability,
+      individualSessionConfigs: payload.individual_session_configs,
+      resourceLocks: payload.resource_locks,
+      knockoutProgramBlocks: payload.knockout_program_blocks,
+      championshipSports: sports,
+    });
+    const recommendedMatchCount =
+      recommendation.line_recommendations[0]?.recommended_match_count ?? 0;
+    const reviewPayload = {
+      ...payload,
+      schedule_days: payload.schedule_days.map((scheduleDay) => ({
+        ...scheduleDay,
+        locations: scheduleDay.locations.map((location) => ({
+          ...location,
+          courts: location.courts.map((court) => ({
+            ...court,
+            sport_match_targets: [
+              {
+                sport_id: "sport-1",
+                planned_match_count: recommendedMatchCount,
+              },
+            ],
+          })),
+        })),
+      })),
+    };
+    const review = resolveChampionshipBracketStructuralReview({
+      payload: reviewPayload,
+      championshipSports: sports,
+      teams: [...teams, buildTeam("team-3", "Atlética C"), buildTeam("team-4", "Atlética D")],
+    });
+    const entries = review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
+    const finalSlot = resolveChampionshipBracketStructuralScheduleSlots(review).find(
+      (slot) => slot.phase == "FINAL",
+    );
+
+    expect(recommendation.competition_summaries[0]).toEqual(
+      expect.objectContaining({
+        required_match_count: 5,
+        resolved_match_count: 5,
+        shortage_match_count: 0,
+      }),
+    );
+    expect(recommendedMatchCount).toBe(5);
+    expect(entries.map((entry) => entry.phase)).toEqual([
+      "GROUP_STAGE",
+      "GROUP_STAGE",
+      "SEMIFINAL",
+      "SEMIFINAL",
+      "FINAL",
+    ]);
+    expect(finalSlot).toEqual(
+      expect.objectContaining({
+        phase: "FINAL",
+        match_kind: "KNOCKOUT",
+        manual_final: false,
+      }),
+    );
   });
 
   it("respeita a disponibilidade do naipe na data antes de alternar a projeção local", () => {
@@ -1514,8 +1702,8 @@ describe("resolveChampionshipBracketStructuralReview", () => {
                       preferred_sport_id: "sport-1",
                       preferred_naipe: MatchNaipe.FEMININO,
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
-                sequence_mode: "GROUP_NAIPE",
-                alternate_naipe_after_exclusive_knockout_phase: false,
+                      sequence_mode: "GROUP_NAIPE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1578,9 +1766,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     });
 
     expect(
-      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries.map(
-        (entry) => entry.naipe,
-      ),
+      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries.map((entry) => entry.naipe),
     ).toEqual([MatchNaipe.FEMININO]);
   });
 
@@ -1671,8 +1857,8 @@ describe("resolveChampionshipBracketStructuralReview", () => {
                       preferred_sport_id: "sport-1",
                       preferred_naipe: MatchNaipe.FEMININO,
                       preferred_division: TeamDivision.DIVISAO_PRINCIPAL,
-                sequence_mode: "GROUP_NAIPE",
-                alternate_naipe_after_exclusive_knockout_phase: false,
+                      sequence_mode: "GROUP_NAIPE",
+                      alternate_naipe_after_exclusive_knockout_phase: false,
                     },
                   },
                 ],
@@ -1723,9 +1909,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     });
 
     expect(
-      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries.map(
-        (entry) => entry.naipe,
-      ),
+      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries.map((entry) => entry.naipe),
     ).toEqual([
       MatchNaipe.FEMININO,
       MatchNaipe.FEMININO,
@@ -1739,25 +1923,17 @@ describe("resolveChampionshipBracketStructuralReview", () => {
   });
 
   it("alterna a prioridade do mata-mata depois de uma fase exclusiva", () => {
-    const feminineTeamIds = Array.from(
-      { length: 4 },
-      (_, index) => `team-f-${index + 1}`,
-    );
-    const masculineTeamIds = Array.from(
-      { length: 8 },
-      (_, index) => `team-m-${index + 1}`,
-    );
+    const feminineTeamIds = Array.from({ length: 4 }, (_, index) => `team-f-${index + 1}`);
+    const masculineTeamIds = Array.from({ length: 8 }, (_, index) => `team-m-${index + 1}`);
     const scheduledDates = ["2026-08-29", "2026-08-30"];
-    const competitionDateAvailability = [
-      MatchNaipe.FEMININO,
-      MatchNaipe.MASCULINO,
-    ].flatMap((naipe) =>
-      scheduledDates.map((date) => ({
-        competition_key: `sport-1::${naipe}::DIVISAO_PRINCIPAL`,
-        date,
-        mode: "FULL_DAY" as const,
-        windows: [],
-      })),
+    const competitionDateAvailability = [MatchNaipe.FEMININO, MatchNaipe.MASCULINO].flatMap(
+      (naipe) =>
+        scheduledDates.map((date) => ({
+          competition_key: `sport-1::${naipe}::DIVISAO_PRINCIPAL`,
+          date,
+          mode: "FULL_DAY" as const,
+          windows: [],
+        })),
     );
     const teamCompetitionDateAvailability = [
       ...feminineTeamIds.flatMap((team_id) =>
@@ -1853,9 +2029,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
                     name: "Quadra 1",
                     position: 1,
                     sport_ids: ["sport-1"],
-                    sport_match_targets: [
-                      { sport_id: "sport-1", planned_match_count: 10 },
-                    ],
+                    sport_match_targets: [{ sport_id: "sport-1", planned_match_count: 10 }],
                     sport_preference: {
                       preferred_sport_id: "sport-1",
                       preferred_naipe: MatchNaipe.MASCULINO,
@@ -1885,9 +2059,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
                     name: "Quadra 1",
                     position: 1,
                     sport_ids: ["sport-1"],
-                    sport_match_targets: [
-                      { sport_id: "sport-1", planned_match_count: 4 },
-                    ],
+                    sport_match_targets: [{ sport_id: "sport-1", planned_match_count: 4 }],
                     sport_preference: {
                       preferred_sport_id: "sport-1",
                       preferred_naipe: MatchNaipe.MASCULINO,
@@ -1981,13 +2153,9 @@ describe("resolveChampionshipBracketStructuralReview", () => {
 
     expect(review.summary.overflow_minutes).toBeGreaterThan(0);
     expect(
-      review.diagnostics.some(
-        (diagnostic) => diagnostic.code == "STRUCTURAL_COURT_DAY_OVERFLOW",
-      ),
+      review.diagnostics.some((diagnostic) => diagnostic.code == "STRUCTURAL_COURT_DAY_OVERFLOW"),
     ).toBe(true);
-    expect(review.days[0]?.locations[0]?.courts[0]?.planning_items[0]?.status).toBe(
-      "OVERFLOW",
-    );
+    expect(review.days[0]?.locations[0]?.courts[0]?.planning_items[0]?.status).toBe("OVERFLOW");
   });
 
   it("identifica quais jogos ficaram pendentes quando a quadra não comporta toda a meta", () => {
@@ -2152,8 +2320,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     expect(reviewCourt?.pending_match_entries).toEqual([]);
     expect(
       review.diagnostics.some(
-        (diagnostic) =>
-          diagnostic.code == "STRUCTURAL_TARGET_ABOVE_REQUIRED_MATCH_COUNT",
+        (diagnostic) => diagnostic.code == "STRUCTURAL_TARGET_ABOVE_REQUIRED_MATCH_COUNT",
       ),
     ).toBe(true);
   });
@@ -2176,8 +2343,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
 
     expect(
       review.diagnostics.some(
-        (diagnostic) =>
-          diagnostic.code == "STRUCTURAL_TARGET_WITHOUT_PLAYABLE_WINDOW",
+        (diagnostic) => diagnostic.code == "STRUCTURAL_TARGET_WITHOUT_PLAYABLE_WINDOW",
       ),
     ).toBe(true);
   });
@@ -2213,8 +2379,7 @@ describe("resolveChampionshipBracketStructuralReview", () => {
 
     expect(
       review.diagnostics.some(
-        (diagnostic) =>
-          diagnostic.code == "STRUCTURAL_RESTRICTED_TEAM_AVAILABILITY",
+        (diagnostic) => diagnostic.code == "STRUCTURAL_RESTRICTED_TEAM_AVAILABILITY",
       ),
     ).toBe(true);
   });
@@ -2238,6 +2403,7 @@ describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
     expires_at: "2099-09-19T00:00:00.000Z",
     is_valid_for_creation: true,
     generated_at: "2026-08-13T00:00:00.000Z",
+    preview_match_count: 12,
     result: null,
   };
 
@@ -2268,12 +2434,55 @@ describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
       }),
     ).toBe(false);
   });
+
+  it("aceita a contagem persistida sem restaurar a cronologia", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache,
+        payloadSignature,
+        expectedMatchCount: 12,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejeita uma prévia vazia quando a revisão prevê partidas", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache: {
+          ...cache,
+          preview_match_count: 0,
+          result: {
+            ok: true,
+            message: null,
+            server_payload_signature: "server-v8",
+            generation_signature: "generation-v8",
+            match_numbering_mode: "GLOBAL" as const,
+            summary: {
+              total_matches: 0,
+              group_stage_matches: 0,
+              knockout_matches: 0,
+              scheduled_matches: 0,
+              occupied_minutes: 0,
+              available_minutes: 0,
+              utilization_percentage: 0,
+              free_windows: 0,
+              conflict_count: 0,
+              warning_count: 0,
+              games_by_day: [],
+            },
+            days: [],
+            diagnostics: [],
+          },
+        },
+        payloadSignature,
+        expectedMatchCount: 1,
+      }),
+    ).toBe(false);
+  });
 });
 
 describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
-  function resolveScenarioSlots(
-    payloadOverride?: ChampionshipBracketSetupFormValues,
-  ) {
+  function resolveScenarioSlots(payloadOverride?: ChampionshipBracketSetupFormValues) {
     const scenario = buildStructuralScheduleSlotsScenario();
     const payload = payloadOverride ?? scenario.payload;
     const review = resolveChampionshipBracketStructuralReview({
@@ -2363,12 +2572,8 @@ describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
 
   it("classifica fases, finais manuais e ignora blocos que não são partidas", () => {
     const { slots } = resolveScenarioSlots();
-    const groupStageSlot = slots.find(
-      (slot) => slot.phase == "GROUP_STAGE",
-    );
-    const quarterfinalSlot = slots.find(
-      (slot) => slot.phase == "QUARTERFINAL",
-    );
+    const groupStageSlot = slots.find((slot) => slot.phase == "GROUP_STAGE");
+    const quarterfinalSlot = slots.find((slot) => slot.phase == "QUARTERFINAL");
     const manualFinalSlot = slots.find((slot) => slot.manual_final);
 
     expect(groupStageSlot).toMatchObject({
@@ -2393,7 +2598,7 @@ describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
         (slot) =>
           slot.sport_id == "sport-2" ||
           slot.start_time == "10:00" ||
-          slot.start_time == "08:00" && slot.date == "2026-08-30",
+          (slot.start_time == "08:00" && slot.date == "2026-08-30"),
       ),
     ).toBe(false);
   });
@@ -2403,9 +2608,7 @@ describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
     const second = resolveScenarioSlots();
 
     expect(first.slots).toEqual(second.slots);
-    expect(new Set(first.slots.map((slot) => slot.slot_key)).size).toBe(
-      first.slots.length,
-    );
+    expect(new Set(first.slots.map((slot) => slot.slot_key)).size).toBe(first.slots.length);
     expect(
       first.slots
         .filter((slot) => slot.phase == "GROUP_STAGE")
@@ -2417,14 +2620,10 @@ describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
         .map((slot) => slot.phase_slot_number),
     ).toEqual([1, 2, 3, 4]);
     expect(
-      first.slots
-        .filter((slot) => slot.phase == "SEMIFINAL")
-        .map((slot) => slot.phase_slot_number),
+      first.slots.filter((slot) => slot.phase == "SEMIFINAL").map((slot) => slot.phase_slot_number),
     ).toEqual([1, 2]);
     expect(
-      first.slots
-        .filter((slot) => slot.phase == "FINAL")
-        .map((slot) => slot.phase_slot_number),
+      first.slots.filter((slot) => slot.phase == "FINAL").map((slot) => slot.phase_slot_number),
     ).toEqual([1]);
   });
 
@@ -2462,45 +2661,42 @@ describe("resolveChampionshipBracketStructuralScheduleSlots", () => {
 
 describe("resolveChampionshipBracketExactPreviewPayloadSignature", () => {
   it("invalida o cache quando o payload muda", () => {
-    const firstSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
-      buildPayload(),
+    const firstSignature = resolveChampionshipBracketExactPreviewPayloadSignature(buildPayload());
+    const secondSignature = resolveChampionshipBracketExactPreviewPayloadSignature(
+      buildPayload({
+        schedule_days: [
+          {
+            date: "2026-08-29",
+            start_time: "08:00",
+            end_time: "18:00",
+            break_start_time: "12:00",
+            break_end_time: "13:00",
+            locations: [
+              {
+                location_key: "loc-1",
+                name: "Ginásio Central",
+                position: 1,
+                courts: [
+                  {
+                    court_key: "court-1",
+                    name: "Quadra 1",
+                    position: 1,
+                    sport_ids: ["sport-1"],
+                    sport_match_targets: [
+                      {
+                        sport_id: "sport-1",
+                        planned_match_count: 6,
+                      },
+                    ],
+                    sport_preference: null,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
     );
-    const secondSignature =
-      resolveChampionshipBracketExactPreviewPayloadSignature(
-        buildPayload({
-          schedule_days: [
-            {
-              date: "2026-08-29",
-              start_time: "08:00",
-              end_time: "18:00",
-              break_start_time: "12:00",
-              break_end_time: "13:00",
-              locations: [
-                {
-                  location_key: "loc-1",
-                  name: "Ginásio Central",
-                  position: 1,
-                  courts: [
-                    {
-                      court_key: "court-1",
-                      name: "Quadra 1",
-                      position: 1,
-                      sport_ids: ["sport-1"],
-                      sport_match_targets: [
-                        {
-                          sport_id: "sport-1",
-                          planned_match_count: 6,
-                        },
-                      ],
-                      sport_preference: null,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        }),
-      );
 
     expect(firstSignature).not.toBe(secondSignature);
   });

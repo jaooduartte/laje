@@ -13,10 +13,11 @@ interface UseChampionshipBracketHistoryOptions {
 }
 
 const BRACKET_REALTIME_DEBOUNCE_MS = 1000;
+const EMPTY_SEASON_YEARS: number[] = [];
 
 export function useChampionshipBracketHistory({
   championshipId,
-  seasonYears = [],
+  seasonYears = EMPTY_SEASON_YEARS,
   enabled = true,
   realtimeEnabled = true,
 }: UseChampionshipBracketHistoryOptions = {}) {
@@ -31,17 +32,25 @@ export function useChampionshipBracketHistory({
   const fetchBracketHistoryRef = useRef<(shouldShowLoading?: boolean) => Promise<void>>(
     async () => undefined,
   );
-  const normalizedSeasonYears = useMemo(() => {
-    return [...new Set(seasonYears)].sort(
-      (firstSeasonYear, secondSeasonYear) => secondSeasonYear - firstSeasonYear,
-    );
-  }, [seasonYears]);
+  const normalizedSeasonYearSignature = [...new Set(seasonYears)]
+    .filter(Number.isFinite)
+    .sort((firstSeasonYear, secondSeasonYear) => secondSeasonYear - firstSeasonYear)
+    .join(":");
+  const normalizedSeasonYears = useMemo(
+    () =>
+      normalizedSeasonYearSignature.length == 0
+        ? EMPTY_SEASON_YEARS
+        : normalizedSeasonYearSignature.split(":").map(Number),
+    [normalizedSeasonYearSignature],
+  );
 
   const fetchBracketHistory = useCallback(
     async (shouldShowLoading = false) => {
       if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
-        setChampionshipBracketSeasonViews([]);
-        setLoading(false);
+        setChampionshipBracketSeasonViews((currentViews) =>
+          currentViews.length == 0 ? currentViews : [],
+        );
+        setLoading((currentLoading) => (currentLoading ? false : currentLoading));
         hasLoadedBracketHistoryRef.current = false;
         isFetchingRef.current = false;
         hasQueuedRefetchRef.current = false;
@@ -113,8 +122,10 @@ export function useChampionshipBracketHistory({
 
   useEffect(() => {
     if (!enabled || !championshipId || normalizedSeasonYears.length == 0) {
-      setChampionshipBracketSeasonViews([]);
-      setLoading(false);
+      setChampionshipBracketSeasonViews((currentViews) =>
+        currentViews.length == 0 ? currentViews : [],
+      );
+      setLoading((currentLoading) => (currentLoading ? false : currentLoading));
       hasLoadedBracketHistoryRef.current = false;
       return;
     }

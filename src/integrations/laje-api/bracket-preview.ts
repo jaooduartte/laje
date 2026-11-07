@@ -46,12 +46,13 @@ export async function createAwsBracketFromPreviewJob(
   championshipId: string,
   jobId: string,
   payload: ChampionshipBracketSetupFormValues,
+  showEstimatedStartTimeOnCardsBySportId: Record<string, boolean> = {},
 ): Promise<string> {
   const response = await lajeApiRequest<DataResponse<{ editionId: string }>>(
     `/championships/${championshipId}/bracket/preview-jobs/${jobId}/create`,
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ payload, showEstimatedStartTimeOnCardsBySportId }),
     },
   );
   return response.data.editionId;

@@ -72,9 +72,7 @@ const {
       division: string | null;
     }>;
   },
-  teamStandingsTableMock: vi.fn((_props: Record<string, unknown>) => (
-    <div>Standings table</div>
-  )),
+  teamStandingsTableMock: vi.fn((_props: Record<string, unknown>) => <div>Standings table</div>),
   interlajeOverallStandingsState: {
     current: {
       standings: [],
@@ -132,6 +130,57 @@ const {
   },
 }));
 
+function createGroupStageStanding(
+  teamId: string,
+  teamName: string,
+  points: number,
+  groupRank: number,
+): Record<string, unknown> {
+  return {
+    competition_id: "competition-1",
+    sport_id: "sport-1",
+    sport_name: "Futebol Society",
+    naipe: MatchNaipe.MASCULINO,
+    division: TeamDivision.DIVISAO_PRINCIPAL,
+    group_id: "group-1",
+    group_number: 1,
+    team_id: teamId,
+    team_name: teamName,
+    played: 1,
+    wins: points > 0 ? 1 : 0,
+    draws: 0,
+    losses: points > 0 ? 0 : 1,
+    goals_for: points > 0 ? 2 : 0,
+    goals_against: points > 0 ? 0 : 2,
+    goal_diff: points > 0 ? 2 : -2,
+    points,
+    comparison_points: points,
+    yellow_cards: 0,
+    red_cards: 0,
+    blue_cards: 0,
+    two_minute_penalties: 0,
+    sets_for: 0,
+    sets_against: 0,
+    rally_points_for: 0,
+    rally_points_against: 0,
+    group_rank: groupRank,
+    comparison_rank: groupRank,
+    comparison_goals_for: points > 0 ? 2 : 0,
+    comparison_goals_against: points > 0 ? 0 : 2,
+    comparison_goal_diff: points > 0 ? 2 : -2,
+    comparison_yellow_cards: 0,
+    comparison_red_cards: 0,
+    comparison_blue_cards: 0,
+    comparison_two_minute_penalties: 0,
+    comparison_sets_for: 0,
+    comparison_sets_against: 0,
+    comparison_rally_points_for: 0,
+    comparison_rally_points_against: 0,
+    qualification_rank: null,
+    qualification_pool_rank: null,
+  };
+}
+
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
@@ -174,8 +223,7 @@ vi.mock("@/hooks/useInterlajeOverallStandings", () => ({
 }));
 
 vi.mock("@/hooks/useInterlajeCompetitionStandings", () => ({
-  useInterlajeCompetitionStandings: () =>
-    interlajeCompetitionStandingsState.current,
+  useInterlajeCompetitionStandings: () => interlajeCompetitionStandingsState.current,
 }));
 
 vi.mock("@/hooks/useMatches", () => ({
@@ -183,7 +231,10 @@ vi.mock("@/hooks/useMatches", () => ({
 }));
 
 vi.mock("@/hooks/useChampionshipBracketResolvedTieBreakOrders", () => ({
-  useChampionshipBracketResolvedTieBreakOrders: () => ({ resolvedTieBreakOrders: [], loading: false }),
+  useChampionshipBracketResolvedTieBreakOrders: () => ({
+    resolvedTieBreakOrders: [],
+    loading: false,
+  }),
 }));
 
 vi.mock("@/hooks/useChampionshipCorrectedGroupStandings", () => ({
@@ -224,7 +275,8 @@ vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
     } | null;
   }) => ({
     resolvedSeasonSettings: {
-      division_format: fallbackSeasonSettings?.division_format ??
+      division_format:
+        fallbackSeasonSettings?.division_format ??
         (championship?.code == ChampionshipCode.INTERLAJE
           ? ChampionshipSeasonDivisionFormat.UNIFIED
           : ChampionshipSeasonDivisionFormat.SEPARATED),
@@ -232,8 +284,7 @@ vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
         fallbackSeasonSettings?.division_settlement_mode ??
         ChampionshipSeasonDivisionSettlementMode.NONE,
       principal_slots_count: fallbackSeasonSettings?.principal_slots_count ?? null,
-      principal_relegation_count:
-        fallbackSeasonSettings?.principal_relegation_count ?? null,
+      principal_relegation_count: fallbackSeasonSettings?.principal_relegation_count ?? null,
       access_promotion_count: fallbackSeasonSettings?.access_promotion_count ?? null,
     },
     usesDivisions:
@@ -247,9 +298,9 @@ vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
 }));
 
 vi.mock("@/hooks/useChampionshipAwardsRankings", async () => {
-  const actualModule = await vi.importActual<typeof import("@/hooks/useChampionshipAwardsRankings")>(
-    "@/hooks/useChampionshipAwardsRankings",
-  );
+  const actualModule = await vi.importActual<
+    typeof import("@/hooks/useChampionshipAwardsRankings")
+  >("@/hooks/useChampionshipAwardsRankings");
 
   return {
     ...actualModule,
@@ -280,7 +331,8 @@ vi.mock("@/components/SportFilter", () => ({
 }));
 
 vi.mock("@/components/ui/dialog", () => ({
-  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? <div>{children}</div> : null),
+  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
+    open ? <div>{children}</div> : null,
   DialogContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
   DialogFooter: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -309,23 +361,18 @@ vi.mock("@/components/ui/select", () => {
         {children}
       </SelectContext.Provider>
     ),
-    SelectTrigger: ({
-      children,
-      id,
-    }: {
-      children: ReactNode;
-      id?: string;
-      disabled?: boolean;
-    }) => {
+    SelectTrigger: ({ children, id }: { children: ReactNode; id?: string; disabled?: boolean }) => {
       const context = React.useContext(SelectContext);
 
       return (
-      <button id={id} type="button" disabled={context?.disabled}>
-        {children}
-      </button>
+        <button id={id} type="button" disabled={context?.disabled}>
+          {children}
+        </button>
       );
     },
-    SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? "Selecionado"}</span>,
+    SelectValue: ({ placeholder }: { placeholder?: string }) => (
+      <span>{placeholder ?? "Selecionado"}</span>
+    ),
     SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     SelectItem: ({ children, value }: { children: ReactNode; value: string }) => {
       const context = React.useContext(SelectContext);
@@ -421,8 +468,7 @@ describe("AdminStandings", () => {
       payload_snapshot: {
         season_settings: {
           division_format: ChampionshipSeasonDivisionFormat.UNIFIED,
-          division_settlement_mode:
-            ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
+          division_settlement_mode: ChampionshipSeasonDivisionSettlementMode.TOP_N_TO_PRINCIPAL,
           principal_slots_count: 1,
           principal_relegation_count: null,
           access_promotion_count: null,
@@ -539,13 +585,186 @@ describe("AdminStandings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
 
-    const mostRecentTeamStandingsProps =
-      teamStandingsTableMock.mock.calls.at(-1)?.[0];
+    const mostRecentTeamStandingsProps = teamStandingsTableMock.mock.calls.at(-1)?.[0];
 
     expect(mostRecentTeamStandingsProps).toMatchObject({ isLoading: false });
   });
 
+  it("exibe somente os pontos de grupos nos recortes de modalidade e naipe", () => {
+    useStandingsMock.mockReturnValue({
+      standings: [
+        {
+          id: "standing-team-1",
+          team_id: "team-1",
+          team_name: "Atlética A",
+          team_city: "Joinville",
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          played: 2,
+          wins: 2,
+          draws: 0,
+          losses: 0,
+          goals_for: 4,
+          goals_against: 1,
+          goal_diff: 3,
+          points: 6,
+          yellow_cards: 0,
+          red_cards: 0,
+        },
+        {
+          id: "standing-team-2",
+          team_id: "team-2",
+          team_name: "Atlética B",
+          team_city: "Joinville",
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          played: 2,
+          wins: 1,
+          draws: 0,
+          losses: 1,
+          goals_for: 2,
+          goals_against: 2,
+          goal_diff: 0,
+          points: 3,
+          yellow_cards: 0,
+          red_cards: 0,
+        },
+      ],
+      loading: false,
+      refetch: vi.fn(),
+    });
+    groupStageStandingsState.current = [
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futebol Society",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-1",
+        team_name: "Atlética A",
+        played: 1,
+        wins: 1,
+        draws: 0,
+        losses: 0,
+        goals_for: 2,
+        goals_against: 0,
+        goal_diff: 2,
+        points: 3,
+        comparison_points: 3,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 0,
+        sets_against: 0,
+        rally_points_for: 0,
+        rally_points_against: 0,
+        group_rank: 1,
+        comparison_rank: 1,
+        comparison_goals_for: 2,
+        comparison_goals_against: 0,
+        comparison_goal_diff: 2,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 0,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 0,
+        comparison_rally_points_against: 0,
+        qualification_rank: null,
+        qualification_pool_rank: null,
+      },
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futebol Society",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-2",
+        team_name: "Atlética B",
+        played: 1,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+        goals_for: 0,
+        goals_against: 2,
+        goal_diff: -2,
+        points: 0,
+        comparison_points: 0,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 0,
+        sets_against: 0,
+        rally_points_for: 0,
+        rally_points_against: 0,
+        group_rank: 2,
+        comparison_rank: 2,
+        comparison_goals_for: 0,
+        comparison_goals_against: 2,
+        comparison_goal_diff: -2,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 0,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 0,
+        comparison_rally_points_against: 0,
+        qualification_rank: null,
+        qualification_pool_rank: null,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    const groupStandingsProps = teamStandingsTableMock.mock.calls
+      .map(([props]) => props)
+      .find((props) => {
+        const standings = props.standings as Array<{
+          team_id: string;
+          points: number;
+        }>;
+        return (
+          standings.some((standing) => standing.team_id == "team-1" && standing.points == 3) &&
+          standings.some((standing) => standing.team_id == "team-2" && standing.points == 0)
+        );
+      });
+
+    expect(groupStandingsProps?.standings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ team_id: "team-1", points: 3 }),
+        expect.objectContaining({ team_id: "team-2", points: 0 }),
+      ]),
+    );
+  });
+
   it("reúne os melhores de cada grupo em uma tabela ao filtrar por posição", () => {
+    groupStageStandingsState.current = [
+      createGroupStageStanding("team-1", "Atlética A", 3, 1),
+      createGroupStageStanding("team-2", "Atlética B", 0, 2),
+    ];
+
     render(
       <AdminStandings
         selectedChampionship={selectedChampionship}
@@ -562,9 +781,7 @@ describe("AdminStandings", () => {
 
     expect(screen.getByRole("heading", { name: "Grupo A" })).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }));
 
     expect(screen.queryByRole("heading", { name: "Grupo A" })).not.toBeInTheDocument();
     expect(screen.getAllByText("Standings table")).toHaveLength(1);
@@ -646,9 +863,7 @@ describe("AdminStandings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
     fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }));
 
     expect(screen.getByText(/apenas os jogos finalizados da fase de grupos/i)).toBeInTheDocument();
     expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
@@ -737,9 +952,7 @@ describe("AdminStandings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
     fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }));
 
     expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
       expect.objectContaining({
@@ -867,9 +1080,7 @@ describe("AdminStandings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
     fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Melhores 1º da fase de grupos" }));
 
     expect(teamStandingsTableMock.mock.calls.at(-1)?.[0].standings).toEqual([
       expect.objectContaining({
@@ -890,6 +1101,11 @@ describe("AdminStandings", () => {
   });
 
   it("não repete o badge de grupo quando a classificação já está separada por chave", () => {
+    groupStageStandingsState.current = [
+      createGroupStageStanding("team-1", "Atlética A", 3, 1),
+      createGroupStageStanding("team-2", "Atlética B", 0, 2),
+    ];
+
     render(
       <AdminStandings
         selectedChampionship={selectedChampionship}
@@ -968,9 +1184,7 @@ describe("AdminStandings", () => {
     );
     expect(lastCall?.[0].disqualifiedTeamKeys).toBeUndefined();
     expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Divisão Principal" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Divisão Principal" })).not.toBeInTheDocument();
     expect(screen.queryByText("Classificação geral do INTERLAJE")).not.toBeInTheDocument();
   });
 
@@ -1147,15 +1361,9 @@ describe("AdminStandings", () => {
       />,
     );
 
-    expect(useStandingsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ division: undefined }),
-    );
-    expect(
-      screen.queryByRole("button", { name: "Divisão Principal" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Divisão de Acesso" }),
-    ).not.toBeInTheDocument();
+    expect(useStandingsMock).toHaveBeenCalledWith(expect.objectContaining({ division: undefined }));
+    expect(screen.queryByRole("button", { name: "Divisão Principal" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Divisão de Acesso" })).not.toBeInTheDocument();
   });
 
   it("usa o formato unificado gravado no snapshot quando a configuração sazonal está ausente", () => {
@@ -1189,12 +1397,8 @@ describe("AdminStandings", () => {
       />,
     );
 
-    expect(useStandingsMock).toHaveBeenCalledWith(
-      expect.objectContaining({ division: undefined }),
-    );
-    expect(
-      screen.queryByRole("button", { name: "Divisão Principal" }),
-    ).not.toBeInTheDocument();
+    expect(useStandingsMock).toHaveBeenCalledWith(expect.objectContaining({ division: undefined }));
+    expect(screen.queryByRole("button", { name: "Divisão Principal" })).not.toBeInTheDocument();
   });
 
   it("restringe a consulta às opções da temporada com divisões separadas", async () => {
@@ -1230,16 +1434,12 @@ describe("AdminStandings", () => {
       />,
     );
 
-    expect(
-      screen.queryByRole("button", { name: "Todas as equipes" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Todas as equipes" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
     fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
 
-    expect(
-      screen.getByRole("button", { name: "Todas as equipes" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Todas as equipes" })).toBeInTheDocument();
   });
 
   it("prioriza o artilheiro da equipe que avançou mais longe antes do sorteio", () => {
@@ -1279,7 +1479,9 @@ describe("AdminStandings", () => {
     const finalScorer = screen.getByText("Artilheiro da Final");
     const semifinalScorer = screen.getByText("Artilheiro da Semi");
 
-    expect(finalScorer.compareDocumentPosition(semifinalScorer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      finalScorer.compareDocumentPosition(semifinalScorer) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it("exibe a ação de desclassificar sem depender dos filtros da tabela", () => {
@@ -1314,34 +1516,36 @@ describe("AdminStandings", () => {
     ).not.toBeInTheDocument();
   });
 
-  it.each([
-    ChampionshipStatus.REVIEW,
-    ChampionshipStatus.IN_PROGRESS,
-  ])("não exibe a prévia de divisões antes do encerramento", (status) => {
-    render(
-      <AdminStandings
-        selectedChampionship={{
-          ...selectedChampionship,
-          status,
-        }}
-        championshipSports={championshipSports}
-        sports={sports}
-        championshipBracketView={divisionMovementBracketView}
-        availableSeasonYears={[2026]}
-      />,
-    );
+  it.each([ChampionshipStatus.REVIEW, ChampionshipStatus.IN_PROGRESS])(
+    "não exibe a prévia de divisões antes do encerramento",
+    (status) => {
+      render(
+        <AdminStandings
+          selectedChampionship={{
+            ...selectedChampionship,
+            code: ChampionshipCode.INTERLAJE,
+            status,
+          }}
+          championshipSports={championshipSports}
+          sports={sports}
+          championshipBracketView={divisionMovementBracketView}
+          availableSeasonYears={[2026]}
+        />,
+      );
 
-    expect(screen.getByRole("button", { name: "Desclassificar atlética" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Visualizar prévia de divisões" }),
-    ).not.toBeInTheDocument();
-  });
+      expect(screen.getByRole("button", { name: "Desclassificar atlética" })).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Visualizar prévia de divisões" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("exibe a prévia de divisões somente no encerramento", () => {
     render(
       <AdminStandings
         selectedChampionship={{
           ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
           status: ChampionshipStatus.FINISHED,
         }}
         championshipSports={championshipSports}
@@ -1386,6 +1590,7 @@ describe("AdminStandings", () => {
       <AdminStandings
         selectedChampionship={{
           ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
           status: ChampionshipStatus.FINISHED,
         }}
         championshipSports={championshipSports}
@@ -1395,19 +1600,13 @@ describe("AdminStandings", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Visualizar prévia de divisões" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Visualizar prévia de divisões" }));
 
-    expect(
-      screen.getByText("Prévia de movimentação das divisões"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Prévia de movimentação das divisões")).toBeInTheDocument();
     expect(replaceDivisionMovementsMock).not.toHaveBeenCalled();
     expect(teamDivisionUpdateMock).not.toHaveBeenCalled();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Confirmar movimentação" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar movimentação" }));
 
     await waitFor(() => {
       expect(teamDivisionUpdateMock).toHaveBeenCalledWith({
@@ -1460,20 +1659,14 @@ describe("AdminStandings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Desclassificar atlética" }));
 
-    expect(
-      document.querySelector("#competition-disqualification-naipe"),
-    ).toBeDisabled();
-    expect(
-      document.querySelector("#competition-disqualification-team"),
-    ).toBeDisabled();
+    expect(document.querySelector("#competition-disqualification-naipe")).toBeDisabled();
+    expect(document.querySelector("#competition-disqualification-team")).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Futebol Society" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Masculino" }).at(-1)!);
     fireEvent.click(screen.getAllByRole("button", { name: "Divisão Principal" }).at(-1)!);
 
-    expect(
-      document.querySelector("#competition-disqualification-team"),
-    ).not.toBeDisabled();
+    expect(document.querySelector("#competition-disqualification-team")).not.toBeDisabled();
   });
 
   it("oculta a divisão no formulário de desclassificação da temporada unificada", () => {
@@ -1653,9 +1846,7 @@ describe("AdminStandings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Divisão Principal" }));
 
     const lastCall = teamStandingsTableMock.mock.calls.at(-1);
-    expect(lastCall?.[0].disqualifiedTeamKeys).toEqual(
-      new Set(["team-2:DIVISAO_PRINCIPAL"]),
-    );
+    expect(lastCall?.[0].disqualifiedTeamKeys).toEqual(new Set(["team-2:DIVISAO_PRINCIPAL"]));
   });
 
   it("chama o rpc de desclassificação com o recorte selecionado no formulário", async () => {

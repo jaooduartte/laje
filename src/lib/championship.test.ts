@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { BracketThirdPlaceMode, MatchManualRepresentationMode, MatchNaipe, MatchStatus, TeamDivision } from "@/lib/enums";
+import {
+  BracketThirdPlaceMode,
+  MatchManualRepresentationMode,
+  MatchNaipe,
+  MatchStatus,
+  TeamDivision,
+} from "@/lib/enums";
 import {
   compareAdminMatchCardOrder,
   resolveDisplayedMatchQueueLabel,
@@ -14,6 +20,7 @@ import {
   resolveMatchStartedAtLabel,
   resolveChampionshipStandingsGroups,
   resolveChampionshipStandingsParticipants,
+  resolveChampionshipBracketEditionSportSelection,
   resolveVisualQueuePositionByMatchId,
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
@@ -25,7 +32,8 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     id: overrides.id,
     championship_id: overrides.championship_id ?? "championship-1",
     season_year: overrides.season_year ?? 2026,
-    division: overrides.division === undefined ? TeamDivision.DIVISAO_PRINCIPAL : overrides.division,
+    division:
+      overrides.division === undefined ? TeamDivision.DIVISAO_PRINCIPAL : overrides.division,
     naipe: overrides.naipe ?? MatchNaipe.MASCULINO,
     supports_cards: overrides.supports_cards ?? false,
     result_rule: overrides.result_rule ?? null,
@@ -34,7 +42,8 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     away_team_id: overrides.away_team_id ?? `${overrides.id}-away-team-id`,
     location: overrides.location ?? "Quadra Central",
     court_name: overrides.court_name ?? null,
-    manual_representation_mode: overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
+    manual_representation_mode:
+      overrides.manual_representation_mode ?? MatchManualRepresentationMode.AUTO,
     scheduled_date: overrides.scheduled_date ?? "2026-03-20",
     queue_position: overrides.queue_position ?? 1,
     scheduled_slot: overrides.scheduled_slot ?? null,
@@ -62,16 +71,66 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
   };
 }
 
+describe("resolveChampionshipBracketEditionSportSelection", () => {
+  it("prioriza as modalidades explicitamente habilitadas na edição", () => {
+    const bracketView = {
+      edition: {
+        payload_snapshot: { enabled_sport_ids: ["sport-2", "sport-3"] },
+      },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-2", "sport-3"]),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("trata uma seleção explicitamente vazia como autoritativa", () => {
+    const bracketView = {
+      edition: { payload_snapshot: { enabled_sport_ids: [] } },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("lê snapshot serializado e ignora valores inválidos", () => {
+    const bracketView = {
+      edition: { payload_snapshot: JSON.stringify({ enabled_sport_ids: ["sport-1", 4, ""] }) },
+      competitions: [],
+    } as unknown as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-1"]),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("recupera as modalidades das competições para edições antigas sem snapshot", () => {
+    const bracketView = {
+      edition: { payload_snapshot: {} },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-1"]),
+      hasConfiguredSelection: true,
+    });
+  });
+});
+
 function buildEstimatedStartTimeChampionshipSport(
   overrides: Partial<MatchEstimatedStartTimeChampionshipSport>,
 ): MatchEstimatedStartTimeChampionshipSport {
   return {
     championship_id: overrides.championship_id ?? "championship-1",
     sport_id: overrides.sport_id ?? "sport-beach-soccer",
-    default_match_duration_minutes:
-      overrides.default_match_duration_minutes ?? 30,
-    show_estimated_start_time_on_cards:
-      overrides.show_estimated_start_time_on_cards ?? true,
+    default_match_duration_minutes: overrides.default_match_duration_minutes ?? 30,
+    show_estimated_start_time_on_cards: overrides.show_estimated_start_time_on_cards ?? true,
   };
 }
 
@@ -120,9 +179,7 @@ describe("resolveChampionshipStandingsGroups", () => {
           {
             id: "group-b",
             group_number: 2,
-            teams: [
-              { team_id: "team-c", team_name: "Gamma", team_city: "Joinville", position: 1 },
-            ],
+            teams: [{ team_id: "team-c", team_name: "Gamma", team_city: "Joinville", position: 1 }],
             matches: [],
           },
         ],
@@ -169,8 +226,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "court-a-game-2",
@@ -180,8 +249,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 2,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_ACESSO, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_ACESSO, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_ACESSO,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_ACESSO,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdMatch = buildMatch({
       id: "court-a-game-3",
@@ -191,11 +272,27 @@ describe("resolveMatchRepresentationByMatchId", () => {
       location: "Arena Seven",
       court_name: "Quadra A",
       status: MatchStatus.LIVE,
-      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-5",
+        name: "Epsilon",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-6",
+        name: "Zeta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
-    const representationByMatchId = resolveMatchRepresentationByMatchId([thirdMatch, secondMatch, firstMatch]);
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      thirdMatch,
+      secondMatch,
+      firstMatch,
+    ]);
 
     expect(representationByMatchId).toEqual({
       "court-a-game-1": "CO",
@@ -211,8 +308,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       start_time: "2026-03-20 11:00:00+00",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "court-a-game-2",
@@ -220,8 +329,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       start_time: "2026-03-20 11:40:00+00",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdMatch = buildMatch({
       id: "court-a-game-4",
@@ -229,8 +350,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       start_time: "2026-03-20 12:20:00+00",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-5",
+        name: "Epsilon",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-6",
+        name: "Zeta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const fourthMatch = buildMatch({
       id: "court-a-game-3",
@@ -238,8 +371,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       start_time: "2026-03-20 13:00:00+00",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-7", name: "Eta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-8", name: "Theta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-7",
+        name: "Eta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-8",
+        name: "Theta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId([
@@ -259,24 +404,60 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondCourtMatch = buildMatch({
       id: "arena-seven-court-b-game-1",
       queue_position: 2,
       location: "Arena Seven",
       court_name: "Quadra B",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdCourtMatch = buildMatch({
       id: "ginasio-court-a-game-1",
       queue_position: 3,
       location: "Ginásio Principal",
       court_name: "Quadra A",
-      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-5",
+        name: "Epsilon",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-6",
+        name: "Zeta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId([
@@ -297,8 +478,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 10,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const nextDayMatch = buildMatch({
       id: "court-a-day-2",
@@ -306,8 +499,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatchOfNextDay = buildMatch({
       id: "court-a-day-2-game-2",
@@ -315,8 +520,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 2,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-5", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-6", name: "Zeta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-5",
+        name: "Epsilon",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-6",
+        name: "Zeta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId([
@@ -336,8 +553,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const currentMatch = buildMatch({
       id: "court-a-override-current",
@@ -345,11 +574,26 @@ describe("resolveMatchRepresentationByMatchId", () => {
       location: "Arena Seven",
       court_name: "Quadra A",
       manual_representation_mode: MatchManualRepresentationMode.CO,
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
-    const representationByMatchId = resolveMatchRepresentationByMatchId([currentMatch, previousMatch]);
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      currentMatch,
+      previousMatch,
+    ]);
 
     expect(representationByMatchId["court-a-override-previous"]).toBe("CO");
     expect(representationByMatchId["court-a-override-current"]).toBe("CO");
@@ -364,8 +608,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       court_name: "Quadra A",
       home_team_id: "team-1",
       away_team_id: "team-2",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const currentMatch = buildMatch({
       id: "court-a-game-current",
@@ -375,11 +631,26 @@ describe("resolveMatchRepresentationByMatchId", () => {
       court_name: "Quadra A",
       home_team_id: "team-2",
       away_team_id: "team-3",
-      home_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
-    const representationByMatchId = resolveMatchRepresentationByMatchId([currentMatch, previousMatch]);
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      currentMatch,
+      previousMatch,
+    ]);
 
     expect(representationByMatchId["court-a-game-previous"]).toBe("CO");
     expect(representationByMatchId["court-a-game-current"]).toBe("Alpha x Beta");
@@ -392,8 +663,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "ATENUN", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "AACOM", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "ATENUN",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "AACOM",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const visibleMatch = buildMatch({
       id: "court-a-visible",
@@ -401,8 +684,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 2,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "AAAUS", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "RASANTE", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "AAAUS",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "RASANTE",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId(
@@ -420,8 +715,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 1,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const visibleScheduledMatch = buildMatch({
       id: "court-a-scheduled-visible",
@@ -429,8 +736,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       queue_position: 2,
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const representationByMatchId = resolveMatchRepresentationByMatchId(
@@ -448,8 +767,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       created_at: "2026-03-20T08:00:00.000Z",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-1", name: "Alpha", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-2", name: "Beta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-1",
+        name: "Alpha",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-2",
+        name: "Beta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "match-b",
@@ -457,8 +788,20 @@ describe("resolveMatchRepresentationByMatchId", () => {
       created_at: "2026-03-20T08:05:00.000Z",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-3", name: "Gamma", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-4", name: "", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-3",
+        name: "Gamma",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-4",
+        name: "",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdMatch = buildMatch({
       id: "match-c",
@@ -466,11 +809,27 @@ describe("resolveMatchRepresentationByMatchId", () => {
       created_at: "2026-03-20T08:05:00.000Z",
       location: "Arena Seven",
       court_name: "Quadra A",
-      home_team: { id: "team-5", name: "Delta", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
-      away_team: { id: "team-6", name: "Epsilon", city: "Joinville", division: TeamDivision.DIVISAO_PRINCIPAL, created_at: "2026-03-01T00:00:00.000Z" },
+      home_team: {
+        id: "team-5",
+        name: "Delta",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
+      away_team: {
+        id: "team-6",
+        name: "Epsilon",
+        city: "Joinville",
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
-    const representationByMatchId = resolveMatchRepresentationByMatchId([thirdMatch, secondMatch, firstMatch]);
+    const representationByMatchId = resolveMatchRepresentationByMatchId([
+      thirdMatch,
+      secondMatch,
+      firstMatch,
+    ]);
 
     expect(representationByMatchId["match-a"]).toBe("CO");
     expect(representationByMatchId["match-b"]).toBe("Alpha x Beta");
@@ -544,7 +903,10 @@ describe("resolveMatchBracketContextByMatchId", () => {
       ],
     };
 
-    const bracketContextByMatchId = resolveMatchBracketContextByMatchId(championshipBracketView, 2026);
+    const bracketContextByMatchId = resolveMatchBracketContextByMatchId(
+      championshipBracketView,
+      2026,
+    );
 
     expect(bracketContextByMatchId["match-semi-1"]).toMatchObject({
       badgeLabel: "Semifinal",
@@ -580,17 +942,18 @@ describe("compareAdminMatchCardOrder", () => {
       court_name: "Quadra A",
     });
 
-    const orderedMatches = [laterDisplayedMatch, earlierDisplayedMatch].sort((firstMatch, secondMatch) =>
-      compareAdminMatchCardOrder(firstMatch, secondMatch, {
-        estimatedStartTimeByMatchId: {
-          "scheduled-match-1": "08:10",
-          "scheduled-match-2": "09:00",
-        },
-        visualQueuePositionByMatchId: {
-          "scheduled-match-1": 1,
-          "scheduled-match-2": 2,
-        },
-      }),
+    const orderedMatches = [laterDisplayedMatch, earlierDisplayedMatch].sort(
+      (firstMatch, secondMatch) =>
+        compareAdminMatchCardOrder(firstMatch, secondMatch, {
+          estimatedStartTimeByMatchId: {
+            "scheduled-match-1": "08:10",
+            "scheduled-match-2": "09:00",
+          },
+          visualQueuePositionByMatchId: {
+            "scheduled-match-1": 1,
+            "scheduled-match-2": 2,
+          },
+        }),
     );
 
     expect(orderedMatches.map((match) => match.id)).toEqual([
@@ -910,7 +1273,7 @@ describe("resolveVisualQueuePositionByMatchId", () => {
       liveMatch,
     ]);
 
-        expect(visualQueuePositionByMatchId["court-a-live-game-8"]).toBe(8);
+    expect(visualQueuePositionByMatchId["court-a-live-game-8"]).toBe(8);
     expect(visualQueuePositionByMatchId["court-a-scheduled-game-9"]).toBe(9);
     expect(visualQueuePositionByMatchId["court-a-scheduled-game-10"]).toBe(10);
   });
@@ -1059,9 +1422,9 @@ describe("resolveMatchStartedAtLabel", () => {
   });
 
   it("keeps the started label for live matches", () => {
-    expect(
-      resolveMatchStartedAtLabel("2026-06-15T08:00:00-03:00", MatchStatus.LIVE),
-    ).toBe("Jogo iniciado às 08:00");
+    expect(resolveMatchStartedAtLabel("2026-06-15T08:00:00-03:00", MatchStatus.LIVE)).toBe(
+      "Jogo iniciado às 08:00",
+    );
   });
 });
 
@@ -1072,7 +1435,11 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       sport_id: "sport-beach-soccer",
       queue_position: 9,
       start_time: "2026-03-20 11:30:00+00",
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1097,7 +1464,11 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       queue_position: 9,
       scheduled_start_time: "2026-03-20 12:30:00+00",
       start_time: null,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1112,9 +1483,7 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
     });
 
-    expect(
-      estimatedStartTimeByMatchId["returned-match-with-planned-start-time"],
-    ).toBe("09:30");
+    expect(estimatedStartTimeByMatchId["returned-match-with-planned-start-time"]).toBe("09:30");
   });
 
   it("uses the persisted planned time instead of the actual start time after the match starts", () => {
@@ -1124,7 +1493,11 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       status: MatchStatus.LIVE,
       scheduled_start_time: "2026-03-20 12:30:00+00",
       start_time: "2026-03-20 14:16:00+00",
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1138,9 +1511,7 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       championshipBracketEditions: [buildEstimatedStartTimeBracketEdition({})],
     });
 
-    expect(
-      estimatedStartTimeByMatchId["live-match-with-planned-start-time"],
-    ).toBe("09:30");
+    expect(estimatedStartTimeByMatchId["live-match-with-planned-start-time"]).toBe("09:30");
   });
 
   it("starts slot 1 at day start and advances each slot by match duration", () => {
@@ -1148,19 +1519,31 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       id: "match-1",
       sport_id: "sport-beach-soccer",
       queue_position: 1,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "match-2",
       sport_id: "sport-beach-soccer",
       queue_position: 2,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdMatch = buildMatch({
       id: "match-3",
       sport_id: "sport-beach-soccer",
       queue_position: 3,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1187,19 +1570,31 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       id: "match-1",
       sport_id: "sport-beach-soccer",
       queue_position: 1,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "match-2",
       sport_id: "sport-beach-soccer",
       queue_position: 2,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const thirdMatch = buildMatch({
       id: "match-3",
       sport_id: "sport-beach-soccer",
       queue_position: 3,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1217,9 +1612,7 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
               date: "2026-03-20",
               start_time: "08:00",
               end_time: "20:00",
-              breaks: [
-                { break_start_time: "08:45", break_end_time: "09:45", position: 1 },
-              ],
+              breaks: [{ break_start_time: "08:45", break_end_time: "09:45", position: 1 }],
             },
           ],
         }),
@@ -1243,14 +1636,22 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       id: "match-beach-disabled",
       sport_id: "sport-beach-disabled",
       queue_position: 1,
-      sports: { id: "sport-beach-disabled", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-disabled",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const liveBeachSoccerMatch = buildMatch({
       id: "match-live",
       sport_id: "sport-beach-soccer",
       queue_position: 1,
       status: MatchStatus.LIVE,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1282,19 +1683,31 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       id: "day-match-1",
       sport_id: "sport-beach-soccer",
       queue_position: 1,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const firstMatch = buildMatch({
       id: "match-1",
       sport_id: "sport-beach-soccer",
       queue_position: 2,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const secondMatch = buildMatch({
       id: "match-2",
       sport_id: "sport-beach-soccer",
       queue_position: 2,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1317,7 +1730,11 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       id: "match-fallback",
       sport_id: "sport-beach-soccer",
       queue_position: 1,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1352,21 +1769,33 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       scheduled_date: "2026-03-20",
       sport_id: "sport-beach-soccer",
       queue_position: 18,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const dayTwoFirstMatch = buildMatch({
       id: "day-two-first-match",
       scheduled_date: "2026-03-21",
       sport_id: "sport-beach-soccer",
       queue_position: 19,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const dayTwoSecondMatch = buildMatch({
       id: "day-two-second-match",
       scheduled_date: "2026-03-21",
       sport_id: "sport-beach-soccer",
       queue_position: 20,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1409,14 +1838,22 @@ describe("resolveEstimatedStartTimeByMatchId", () => {
       sport_id: "sport-beach-soccer",
       status: MatchStatus.LIVE,
       queue_position: 1,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
     const filteredVisibleMatch = buildMatch({
       id: "beach-game-2",
       sport_id: "sport-beach-soccer",
       status: MatchStatus.SCHEDULED,
       queue_position: 2,
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
     });
 
     const estimatedStartTimeByMatchId = resolveEstimatedStartTimeByMatchId({
@@ -1604,7 +2041,11 @@ describe("resolveInterleavedScheduledMatchesByCompetition", () => {
     const beachSoccerGameOne = buildMatch({
       id: "beach-soccer-game-1",
       sport_id: "sport-beach-soccer",
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
       naipe: MatchNaipe.MASCULINO,
       queue_position: 1,
     });
@@ -1625,7 +2066,11 @@ describe("resolveInterleavedScheduledMatchesByCompetition", () => {
     const beachSoccerGameTwo = buildMatch({
       id: "beach-soccer-game-2",
       sport_id: "sport-beach-soccer",
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
       naipe: MatchNaipe.MASCULINO,
       queue_position: 2,
     });
@@ -1646,7 +2091,11 @@ describe("resolveInterleavedScheduledMatchesByCompetition", () => {
     const beachSoccerGameFourFemale = buildMatch({
       id: "beach-soccer-game-4-female",
       sport_id: "sport-beach-soccer",
-      sports: { id: "sport-beach-soccer", name: "Beach Soccer", created_at: "2026-03-01T00:00:00.000Z" },
+      sports: {
+        id: "sport-beach-soccer",
+        name: "Beach Soccer",
+        created_at: "2026-03-01T00:00:00.000Z",
+      },
       naipe: MatchNaipe.FEMININO,
       queue_position: 4,
     });

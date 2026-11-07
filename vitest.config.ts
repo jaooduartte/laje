@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     env: {
+      VITE_BACKEND_PROVIDER: "supabase",
+      VITE_API_URL: "",
       VITE_SUPABASE_URL: "https://example.supabase.co",
       VITE_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
     },
@@ -16,7 +18,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reportsDirectory: "./coverage/frontend",
-      reporter: ["text", "json-summary", "lcov", "html"],
+      reporter: ["text-summary", "json-summary", "lcov", "html"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/**/*.{test,spec}.{ts,tsx}",

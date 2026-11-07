@@ -127,10 +127,14 @@ export function usePendingTieBreaks({
           bracketEditionId,
           forceFresh,
         );
-        setPendingContexts(response.data);
+
+        if (response.error) {
+          console.error("Error fetching pending tie breaks:", response.error);
+        } else {
+          setPendingContexts(response.data);
+        }
       } catch (error) {
         console.error("Error fetching pending tie breaks:", error);
-        setPendingContexts([]);
       } finally {
         hasLoadedPendingTieBreaksRef.current = true;
         setLoading(false);

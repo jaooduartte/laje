@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ChampionshipBracketTieBreakContextType, MatchNaipe, TeamDivision } from "@/lib/enums";
 import {
+  reconcileTieBreakDraftTeamOrders,
   resolveIsTieBreakTeamOrderReady,
   resolveNormalizedTieBreakTeamOrder,
 } from "@/components/admin/adminMatchesTieBreak.utils";
@@ -38,16 +39,49 @@ describe("AdminMatches tie-break helpers", () => {
     ]);
   });
 
+  it("preserva escolhas válidas e descarta participantes removidos ou repetidos após atualização", () => {
+    const pendingTieBreakContext = buildPendingTieBreakContext();
+
+    expect(
+      reconcileTieBreakDraftTeamOrders([pendingTieBreakContext], {
+        "context-1": ["team-3", "team-removed", "team-3"],
+        "context-obsolete": ["team-1"],
+      }),
+    ).toEqual({
+      "context-1": ["team-3", "", ""],
+    });
+  });
+
   it("considera inválido quando a ordem está incompleta ou com time repetido", () => {
     const pendingTieBreakContext = buildPendingTieBreakContext();
 
-    expect(resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-1", "", "team-3"])).toBe(false);
-    expect(resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-1", "team-1", "team-3"])).toBe(false);
+    expect(resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-1", "", "team-3"])).toBe(
+      false,
+    );
+    expect(
+      resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-1", "team-1", "team-3"]),
+    ).toBe(false);
+  });
+
+  it("considera inválido quando o contexto não tem ao menos duas atléticas", () => {
+    const pendingTieBreakContext = buildPendingTieBreakContext();
+
+    expect(resolveIsTieBreakTeamOrderReady({ ...pendingTieBreakContext, teams: [] }, [])).toBe(
+      false,
+    );
+    expect(
+      resolveIsTieBreakTeamOrderReady(
+        { ...pendingTieBreakContext, teams: [pendingTieBreakContext.teams[0]] },
+        [pendingTieBreakContext.teams[0].team_id],
+      ),
+    ).toBe(false);
   });
 
   it("considera válido quando a ordem está completa e sem duplicidade", () => {
     const pendingTieBreakContext = buildPendingTieBreakContext();
 
-    expect(resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-3", "team-1", "team-2"])).toBe(true);
+    expect(
+      resolveIsTieBreakTeamOrderReady(pendingTieBreakContext, ["team-3", "team-1", "team-2"]),
+    ).toBe(true);
   });
 });

@@ -31,13 +31,11 @@ vi.mock("@/components/IndividualSportStandingsTable", () => ({
 vi.mock("@/components/ui/tabs", () => ({
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsNavigationList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsNavigationTrigger: ({
-    children,
-    value,
-  }: {
-    children: ReactNode;
-    value: string;
-  }) => <button type="button" data-value={value}>{children}</button>,
+  TabsNavigationTrigger: ({ children, value }: { children: ReactNode; value: string }) => (
+    <button type="button" data-value={value}>
+      {children}
+    </button>
+  ),
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -55,6 +53,22 @@ describe("ChampionshipsPageView", () => {
     };
 
     const championshipChampionHistory: ChampionshipChampionYearGroup[] = [
+      {
+        year: "2025",
+        champions: [
+          {
+            year: "2025",
+            sport_id: "sport-previous-season",
+            sport_name: "Futebol Society",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+            champion_team_name: "Campeã da temporada anterior",
+            runner_up_team_name: "Vice da temporada anterior",
+            third_place_team_name: null,
+            match_id: "final-previous-season",
+          },
+        ],
+      },
       {
         year: "2026",
         champions: [
@@ -122,7 +136,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.SOCIETY}
           selectedChampionshipIsFinished
-          championshipCardImageByCode={{ [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -168,6 +184,7 @@ describe("ChampionshipsPageView", () => {
     );
 
     expect(await screen.findByText("Melhor defesa")).toBeInTheDocument();
+    expect(screen.queryByText("Campeã da temporada anterior")).not.toBeInTheDocument();
     expect(screen.getByText(/Atlética Defesa/)).toBeInTheDocument();
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
     expect(screen.getByText("Artilheiro da Final")).toBeInTheDocument();
@@ -263,7 +280,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.SOCIETY}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -385,7 +404,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.INTERLAJE}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -457,7 +478,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.INTERLAJE}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -508,7 +531,24 @@ describe("ChampionshipsPageView", () => {
           historyYears={["2026"]}
           filteredHistoryMatches={[]}
           isHistoryMatchesFetching={false}
-          championshipChampionHistory={[]}
+          championshipChampionHistory={[
+            {
+              year: "2025",
+              champions: [
+                {
+                  year: "2025",
+                  sport_id: "sport-previous-season",
+                  sport_name: "Beach Soccer",
+                  naipe: MatchNaipe.FEMININO,
+                  division: null,
+                  champion_team_name: "Campeã da temporada anterior",
+                  runner_up_team_name: "Vice da temporada anterior",
+                  third_place_team_name: null,
+                  match_id: "final-previous-season",
+                },
+              ],
+            },
+          ]}
           overallPodiumStandings={[]}
           awardsRankings={null}
           awardsSeasonYear={2026}
@@ -533,6 +573,10 @@ describe("ChampionshipsPageView", () => {
     expect(screen.getByText("Atlética A")).toBeInTheDocument();
     expect(screen.getByText("João")).toBeInTheDocument();
     expect(screen.getByText("24 pts")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum campeão identificado para este campeonato."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Campeã da temporada anterior")).not.toBeInTheDocument();
     expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
   });
 });

@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { YellowCardDisciplineTable } from "@/components/YellowCardDisciplineTable";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { ChampionshipSportNaipeMode, MatchNaipe } from "@/lib/enums";
-import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import {
+  MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_LABELS,
+  resolveChampionshipBracketEditionSportSelection,
+} from "@/lib/championship";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 
@@ -39,6 +50,19 @@ export function AdminDiscipline({
     championshipId: championship.id,
     seasonYear: Number(seasonYear),
   });
+  const { championshipBracketView, loading: championshipBracketLoading } = useChampionshipBracket({
+    championshipId: championship.id,
+    seasonYear: Number(seasonYear),
+    realtimeEnabled: false,
+  });
+  const editionSportSelection = useMemo(
+    () =>
+      championshipBracketView.edition
+        ? resolveChampionshipBracketEditionSportSelection(championshipBracketView)
+        : null,
+    [championshipBracketView],
+  );
+  const hasConfiguredEditionSports = editionSportSelection?.hasConfiguredSelection ?? false;
   const { usesDivisions } = useChampionshipSeasonRuntime({
     championship,
     seasonYear: Number(seasonYear),
@@ -50,12 +74,19 @@ export function AdminDiscipline({
     );
     const sportById = new Map(
       sports
-        .filter((sport) => configuredSportIds.has(sport.id))
+        .filter(
+          (sport) =>
+            configuredSportIds.has(sport.id) &&
+            (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(sport.id)),
+        )
         .map((sport) => [sport.id, sport]),
     );
 
     (discipline?.athletes ?? []).forEach((athlete) => {
-      if (!sportById.has(athlete.sport_id)) {
+      if (
+        (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(athlete.sport_id)) &&
+        !sportById.has(athlete.sport_id)
+      ) {
         sportById.set(athlete.sport_id, {
           id: athlete.sport_id,
           name: athlete.sport_name,
@@ -67,27 +98,29 @@ export function AdminDiscipline({
     return [...sportById.values()].sort((firstSport, secondSport) =>
       firstSport.name.localeCompare(secondSport.name, "pt-BR"),
     );
-  }, [championshipSports, discipline?.athletes, sports]);
+  }, [
+    championshipSports,
+    discipline?.athletes,
+    editionSportSelection,
+    hasConfiguredEditionSports,
+    sports,
+  ]);
 
   const availableNaipeOptions = useMemo(() => {
     const scopedChampionshipSports =
       sportId == ALL_FILTER
         ? championshipSports
-        : championshipSports.filter(
-            (championshipSport) => championshipSport.sport_id == sportId,
-          );
+        : championshipSports.filter((championshipSport) => championshipSport.sport_id == sportId);
 
     return [
       ...(scopedChampionshipSports.some(
         (championshipSport) =>
-          championshipSport.naipe_mode ==
-          ChampionshipSportNaipeMode.MASCULINO_FEMININO,
+          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MASCULINO_FEMININO,
       )
         ? [MatchNaipe.MASCULINO, MatchNaipe.FEMININO]
         : []),
       ...(scopedChampionshipSports.some(
-        (championshipSport) =>
-          championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
+        (championshipSport) => championshipSport.naipe_mode == ChampionshipSportNaipeMode.MISTO,
       )
         ? [MatchNaipe.MISTO]
         : []),
@@ -95,10 +128,14 @@ export function AdminDiscipline({
   }, [championshipSports, sportId]);
 
   useEffect(() => {
-    if (sportId != ALL_FILTER && !availableSports.some((sport) => sport.id == sportId)) {
+    if (
+      !championshipBracketLoading &&
+      sportId != ALL_FILTER &&
+      !availableSports.some((sport) => sport.id == sportId)
+    ) {
       setSportId(ALL_FILTER);
     }
-  }, [availableSports, sportId]);
+  }, [availableSports, championshipBracketLoading, sportId]);
 
   useEffect(() => {
     if (naipe != ALL_FILTER && !availableNaipeOptions.includes(naipe as MatchNaipe)) {
@@ -130,9 +167,7 @@ export function AdminDiscipline({
 
     return [...teamsById.entries()]
       .map(([id, name]) => ({ id, name }))
-      .sort((firstTeam, secondTeam) =>
-        firstTeam.name.localeCompare(secondTeam.name, "pt-BR"),
-      );
+      .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name, "pt-BR"));
   }, [athletesInSelectedContext]);
 
   useEffect(() => {
@@ -147,7 +182,8 @@ export function AdminDiscipline({
       (athlete) =>
         (teamId == ALL_FILTER || athlete.team_id == teamId) &&
         (!onlySuspended || athlete.is_suspended) &&
-        (!normalizedQuery || athlete.player_name.toLocaleLowerCase("pt-BR").includes(normalizedQuery)),
+        (!normalizedQuery ||
+          athlete.player_name.toLocaleLowerCase("pt-BR").includes(normalizedQuery)),
     );
 
     return filteredAthletes.sort((firstAthlete, secondAthlete) => {
@@ -157,18 +193,21 @@ export function AdminDiscipline({
 
       if (sort == TOTAL_CARDS_SORT) {
         const totalCardsDifference =
-          secondAthlete.yellow_cards_total + secondAthlete.red_cards_direct_total -
+          secondAthlete.yellow_cards_total +
+          secondAthlete.red_cards_direct_total -
           (firstAthlete.yellow_cards_total + firstAthlete.red_cards_direct_total);
         if (totalCardsDifference != 0) return totalCardsDifference;
       }
 
       if (sort == YELLOW_CARDS_SORT) {
-        const yellowCardsDifference = secondAthlete.yellow_cards_total - firstAthlete.yellow_cards_total;
+        const yellowCardsDifference =
+          secondAthlete.yellow_cards_total - firstAthlete.yellow_cards_total;
         if (yellowCardsDifference != 0) return yellowCardsDifference;
       }
 
       if (sort == DIRECT_RED_CARDS_SORT) {
-        const directRedCardsDifference = secondAthlete.red_cards_direct_total - firstAthlete.red_cards_direct_total;
+        const directRedCardsDifference =
+          secondAthlete.red_cards_direct_total - firstAthlete.red_cards_direct_total;
         if (directRedCardsDifference != 0) return directRedCardsDifference;
       }
 
@@ -182,34 +221,85 @@ export function AdminDiscipline({
         <div>
           <h2 className="text-xl font-display font-bold">Disciplina</h2>
           <p className="text-sm text-muted-foreground">
-            Consulte cartões amarelos, vermelhos diretos e avisos de suspensão sem bloquear o andamento dos jogos.
+            Consulte cartões amarelos, vermelhos diretos e avisos de suspensão sem bloquear o
+            andamento dos jogos.
           </p>
         </div>
-        <div className={`grid gap-3 sm:grid-cols-2 ${usesDivisions ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
+        <div
+          className={`grid gap-3 sm:grid-cols-2 ${usesDivisions ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}
+        >
           <Select value={seasonYear} onValueChange={setSeasonYear}>
-            <SelectTrigger className="app-input-field"><SelectValue placeholder="Temporada" /></SelectTrigger>
-            <SelectContent>{[...new Set([...availableSeasonYears, championship.current_season_year])].sort((a, b) => b - a).map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Temporada" />
+            </SelectTrigger>
+            <SelectContent>
+              {[...new Set([...availableSeasonYears, championship.current_season_year])]
+                .sort((a, b) => b - a)
+                .map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                ))}
+            </SelectContent>
           </Select>
           <Select value={sportId} onValueChange={setSportId}>
-            <SelectTrigger className="app-input-field"><SelectValue placeholder="Modalidade" /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL_FILTER}>Todas as modalidades</SelectItem>{availableSports.map((sport) => <SelectItem key={sport.id} value={sport.id}>{sport.name}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Modalidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>Todas as modalidades</SelectItem>
+              {availableSports.map((sport) => (
+                <SelectItem key={sport.id} value={sport.id}>
+                  {sport.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <Select value={naipe} onValueChange={setNaipe}>
-            <SelectTrigger className="app-input-field"><SelectValue placeholder="Naipe" /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL_FILTER}>Todos os naipes</SelectItem>{availableNaipeOptions.map((item) => <SelectItem key={item} value={item}>{MATCH_NAIPE_LABELS[item]}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Naipe" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>Todos os naipes</SelectItem>
+              {availableNaipeOptions.map((item) => (
+                <SelectItem key={item} value={item}>
+                  {MATCH_NAIPE_LABELS[item]}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           {usesDivisions ? (
             <Select value={division} onValueChange={setDivision}>
-              <SelectTrigger className="app-input-field"><SelectValue placeholder="Divisão" /></SelectTrigger>
-              <SelectContent><SelectItem value={ALL_FILTER}>Todas as divisões</SelectItem>{Object.entries(TEAM_DIVISION_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="app-input-field">
+                <SelectValue placeholder="Divisão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_FILTER}>Todas as divisões</SelectItem>
+                {Object.entries(TEAM_DIVISION_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
           ) : null}
           <Select value={teamId} onValueChange={setTeamId}>
-            <SelectTrigger className="app-input-field"><SelectValue placeholder="Atlética" /></SelectTrigger>
-            <SelectContent><SelectItem value={ALL_FILTER}>Todas as atléticas</SelectItem>{availableTeams.map((team) => <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>)}</SelectContent>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Atlética" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_FILTER}>Todas as atléticas</SelectItem>
+              {availableTeams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
           <Select value={sort} onValueChange={setSort}>
-            <SelectTrigger className="app-input-field"><SelectValue placeholder="Ordenar por" /></SelectTrigger>
+            <SelectTrigger className="app-input-field">
+              <SelectValue placeholder="Ordenar por" />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALPHABETICAL_SORT}>Ordem alfabética</SelectItem>
               <SelectItem value={TOTAL_CARDS_SORT}>Mais cartões</SelectItem>
@@ -220,7 +310,12 @@ export function AdminDiscipline({
           </Select>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Input value={athleteQuery} onChange={(event) => setAthleteQuery(event.target.value)} placeholder="Buscar atleta" className="app-input-field sm:w-2/3" />
+          <Input
+            value={athleteQuery}
+            onChange={(event) => setAthleteQuery(event.target.value)}
+            placeholder="Buscar atleta"
+            className="app-input-field sm:w-2/3"
+          />
           <label className="flex items-center gap-2 text-sm font-medium sm:shrink-0">
             <Switch checked={onlySuspended} onCheckedChange={setOnlySuspended} />
             Somente suspensos

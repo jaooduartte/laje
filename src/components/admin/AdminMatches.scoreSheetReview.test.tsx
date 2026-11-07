@@ -446,7 +446,7 @@ function buildCorrectedGroupStanding(
   };
 }
 
-function renderAdminMatches(params: {
+type RenderAdminMatchesParams = {
   matches: Match[];
   viewMode?: AdminMatchesViewMode;
   bracketView?: ChampionshipBracketView;
@@ -468,42 +468,48 @@ function renderAdminMatches(params: {
   hasMatchesEditPermission?: boolean;
   externalPendingTieBreakContexts?: ChampionshipBracketTieBreakPendingContext[];
   externalPendingTieBreakEditionId?: string | null;
-}) {
+};
+
+function renderAdminMatches(params: RenderAdminMatchesParams) {
   const onRefetch = vi.fn();
   const onRefetchChampionshipBracket = vi.fn();
 
-  render(
+  const createAdminMatchesView = (viewParams: RenderAdminMatchesParams) => (
     <TooltipProvider>
       <AdminMatches
-        matches={params.matches}
-        teams={params.matches.flatMap((match) => [match.home_team!, match.away_team!])}
+        matches={viewParams.matches}
+        teams={viewParams.matches.flatMap((match) => [match.home_team!, match.away_team!])}
         championshipSports={
-          params.championshipSports ?? [
+          viewParams.championshipSports ?? [
             buildChampionshipSport({ id: "championship-sport-1", sport_id: "sport-1" }),
           ]
         }
-        selectedChampionship={params.selectedChampionship ?? buildChampionship()}
-        championshipBracketView={params.bracketView ?? buildBracketView()}
+        selectedChampionship={viewParams.selectedChampionship ?? buildChampionship()}
+        championshipBracketView={viewParams.bracketView ?? buildBracketView()}
         loadingChampionshipBracket={false}
-        matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
+        matchBracketContextByMatchId={viewParams.matchBracketContextByMatchId ?? {}}
         matchRepresentationByMatchId={{}}
-        visualQueuePositionByMatchId={params.visualQueuePositionByMatchId ?? {}}
-        estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId ?? {}}
+        visualQueuePositionByMatchId={viewParams.visualQueuePositionByMatchId ?? {}}
+        estimatedStartTimeByMatchId={viewParams.estimatedStartTimeByMatchId ?? {}}
         isFetchingMatches={false}
-        canManageMatches={params.canManageMatches ?? true}
-        hasMatchesEditPermission={params.hasMatchesEditPermission}
-        viewMode={params.viewMode ?? AdminMatchesViewMode.DEFAULT}
+        canManageMatches={viewParams.canManageMatches ?? true}
+        hasMatchesEditPermission={viewParams.hasMatchesEditPermission}
+        viewMode={viewParams.viewMode ?? AdminMatchesViewMode.DEFAULT}
         onRefetch={onRefetch}
         onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-        externalPendingTieBreakContexts={params.externalPendingTieBreakContexts}
-        externalPendingTieBreakEditionId={params.externalPendingTieBreakEditionId}
+        externalPendingTieBreakContexts={viewParams.externalPendingTieBreakContexts}
+        externalPendingTieBreakEditionId={viewParams.externalPendingTieBreakEditionId}
       />
-    </TooltipProvider>,
+    </TooltipProvider>
   );
+
+  const renderResult = render(createAdminMatchesView(params));
 
   return {
     onRefetch,
     onRefetchChampionshipBracket,
+    rerenderAdminMatches: (nextParams: RenderAdminMatchesParams) =>
+      renderResult.rerender(createAdminMatchesView(nextParams)),
   };
 }
 
@@ -3573,6 +3579,78 @@ describe("AdminMatches score sheet review", () => {
     await waitFor(() => {
       expect(screen.queryByText("Sorteio manual do Grupo A")).not.toBeInTheDocument();
       expect(screen.getByText("Sorteio manual do Grupo B")).toBeInTheDocument();
+    });
+  });
+
+  it("preserva a ordem manual enquanto os contextos de desempate são atualizados", async () => {
+    const pendingTieBreakContext: ChampionshipBracketTieBreakPendingContext = {
+      context_key: "context-live-refresh",
+      competition_id: "competition-1",
+      sport_name: "Beach Soccer",
+      naipe: MatchNaipe.FEMININO,
+      division: TeamDivision.DIVISAO_ACESSO,
+      context_type: ChampionshipBracketTieBreakContextType.GROUP,
+      group_id: "group-refresh",
+      group_number: 2,
+      qualification_rank: null,
+      title: "Sorteio manual do Grupo B",
+      description: "Empate total entre AACOM e AGUA.",
+      teams: [
+        { team_id: "team-aacom", team_name: "AACOM" },
+        { team_id: "team-agua", team_name: "AGUA" },
+      ],
+    };
+    const renderParams: RenderAdminMatchesParams = {
+      viewMode: AdminMatchesViewMode.TIE_BREAKS,
+      matches: [
+        buildMatch({
+          id: "tie-break-live-refresh-match",
+          sport_id: "sport-1",
+          status: MatchStatus.FINISHED,
+        }),
+      ],
+      bracketView: buildBracketView({ edition: buildBracketEdition() }),
+      externalPendingTieBreakContexts: [pendingTieBreakContext],
+      externalPendingTieBreakEditionId: "edition-1",
+    };
+    const { rerenderAdminMatches } = renderAdminMatches(renderParams);
+
+    await screen.findByText("Sorteio manual do Grupo B");
+    fireEvent.click(screen.getByRole("combobox", { name: "Atlética na posição 1 do desempate" }));
+    fireEvent.click(await screen.findByRole("option", { name: "AGUA" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Atlética na posição 2 do desempate" }));
+    fireEvent.click(await screen.findByRole("option", { name: "AACOM" }));
+
+    rerenderAdminMatches({
+      ...renderParams,
+      externalPendingTieBreakContexts: [
+        {
+          ...pendingTieBreakContext,
+          teams: pendingTieBreakContext.teams.map((team) => ({ ...team })),
+        },
+      ],
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("combobox", { name: "Atlética na posição 1 do desempate" }),
+      ).toHaveTextContent("AGUA");
+      expect(
+        screen.getByRole("combobox", { name: "Atlética na posição 2 do desempate" }),
+      ).toHaveTextContent("AACOM");
+      expect(
+        screen.getByRole("button", { name: "Confirmar sorteios e gerar mata-mata" }),
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar sorteios e gerar mata-mata" }));
+
+    await waitFor(() => {
+      expect(saveTieBreakResolutionMock).toHaveBeenCalledTimes(1);
+      expect(saveTieBreakResolutionMock.mock.calls[0]?.[0].team_ids).toEqual([
+        "team-agua",
+        "team-aacom",
+      ]);
     });
   });
 
