@@ -711,6 +711,98 @@ describe("resolveChampionshipBracketStructuralReview", () => {
     expect(sportSummary?.excess_match_count).toBe(0);
   });
 
+  it("estima jogos antes do sorteio e recomenda Automático por padrão", () => {
+    const participantIds = ["team-1", "team-2", "team-3", "team-4"];
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const payload = buildPayload({
+      participants: participantIds.map((team_id) => ({
+        team_id,
+        modalities: [
+          {
+            sport_id: "sport-1",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        ],
+      })),
+      competitions: [
+        {
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          groups_count: 2,
+          qualifiers_per_group: 1,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+          third_place_mode: BracketThirdPlaceMode.NONE,
+          groups: [
+            { group_number: 1, team_ids: [] },
+            { group_number: 2, team_ids: [] },
+          ],
+        },
+      ],
+      schedule_days: [
+        {
+          date: "2026-08-29",
+          start_time: "08:00",
+          end_time: "18:00",
+          break_start_time: "12:00",
+          break_end_time: "13:00",
+          locations: [
+            {
+              location_key: "loc-1",
+              name: "Ginásio Central",
+              position: 1,
+              courts: [
+                {
+                  court_key: "court-1",
+                  name: "Quadra 1",
+                  position: 1,
+                  sport_ids: ["sport-1"],
+                  sport_match_targets: [],
+                  sport_preference: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      team_competition_date_availability: participantIds.map((team_id) => ({
+        team_id,
+        competition_key: competitionKey,
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      })),
+    });
+
+    const result = resolveChampionshipBracketSportMatchTargetRecommendations({
+      scheduleDays: buildDraftScheduleDaysFromPayload(payload),
+      competitions: payload.competitions,
+      participants: payload.participants,
+      competitionDateAvailability: payload.competition_date_availability,
+      individualSessionConfigs: payload.individual_session_configs,
+      resourceLocks: payload.resource_locks,
+      knockoutProgramBlocks: payload.knockout_program_blocks,
+      championshipSports: sports,
+    });
+
+    expect(result.competition_summaries[0]).toEqual(
+      expect.objectContaining({
+        required_match_count: 3,
+        resolved_match_count: 3,
+        shortage_match_count: 0,
+      }),
+    );
+    expect(result.line_recommendations[0]).toEqual(
+      expect.objectContaining({
+        planning_mode: "AUTO",
+        recommended_match_count: 3,
+        effective_match_count: 3,
+      }),
+    );
+  });
+
   it("expõe o saldo por naipe/divisão quando a modalidade fica desequilibrada", () => {
     const payload = buildPayload({
       participants: [
@@ -1405,6 +1497,158 @@ describe("resolveChampionshipBracketStructuralReview", () => {
         .flatMap((court) => court.estimated_match_entries)
         .some((entry) => entry.phase == "FINAL"),
     ).toBe(false);
+  });
+
+  it("projeta a final automaticamente quando não existe bloco manual", () => {
+    const participantIds = ["team-1", "team-2", "team-3", "team-4"];
+    const competitionKey = "sport-1::MASCULINO::DIVISAO_PRINCIPAL";
+    const payload = buildPayload({
+      participants: participantIds.map((team_id) => ({
+        team_id,
+        modalities: [
+          {
+            sport_id: "sport-1",
+            naipe: MatchNaipe.MASCULINO,
+            division: TeamDivision.DIVISAO_PRINCIPAL,
+          },
+        ],
+      })),
+      competitions: [
+        {
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          groups_count: 2,
+          qualifiers_per_group: 2,
+          should_complete_knockout_with_best_second_placed_teams: false,
+          knockout_pairing_mode: "LINEAR",
+          third_place_mode: BracketThirdPlaceMode.NONE,
+          groups: [
+            { group_number: 1, team_ids: ["team-1", "team-2"] },
+            { group_number: 2, team_ids: ["team-3", "team-4"] },
+          ],
+        },
+      ],
+      schedule_days: [
+        {
+          date: "2026-08-29",
+          start_time: "08:00",
+          end_time: "18:00",
+          break_start_time: null,
+          break_end_time: null,
+          locations: [
+            {
+              location_key: "loc-1",
+              name: "Ginásio Central",
+              position: 1,
+              courts: [
+                {
+                  court_key: "court-1",
+                  name: "Quadra 1",
+                  position: 1,
+                  sport_ids: ["sport-1"],
+                  sport_match_targets: [],
+                  sport_preference: null,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      competition_date_availability: [
+        {
+          competition_key: competitionKey,
+          date: "2026-08-29",
+          mode: "FULL_DAY",
+          windows: [],
+        },
+      ],
+      team_competition_date_availability: participantIds.map((team_id) => ({
+        team_id,
+        competition_key: competitionKey,
+        date: "2026-08-29",
+        mode: "FULL_DAY",
+        windows: [],
+      })),
+      knockout_program_blocks: [],
+    });
+    const recommendation = resolveChampionshipBracketSportMatchTargetRecommendations(
+      {
+        scheduleDays: buildDraftScheduleDaysFromPayload(payload, {
+          "court-1": [
+            {
+              sport_id: "sport-1",
+              planned_match_count: 0,
+              planning_mode: "AUTO",
+            },
+          ],
+        }),
+        competitions: payload.competitions,
+        participants: payload.participants,
+        competitionDateAvailability: payload.competition_date_availability,
+        individualSessionConfigs: payload.individual_session_configs,
+        resourceLocks: payload.resource_locks,
+        knockoutProgramBlocks: payload.knockout_program_blocks,
+        championshipSports: sports,
+      },
+    );
+    const recommendedMatchCount =
+      recommendation.line_recommendations[0]?.recommended_match_count ?? 0;
+    const reviewPayload = {
+      ...payload,
+      schedule_days: payload.schedule_days.map((scheduleDay) => ({
+        ...scheduleDay,
+        locations: scheduleDay.locations.map((location) => ({
+          ...location,
+          courts: location.courts.map((court) => ({
+            ...court,
+            sport_match_targets: [
+              {
+                sport_id: "sport-1",
+                planned_match_count: recommendedMatchCount,
+              },
+            ],
+          })),
+        })),
+      })),
+    };
+    const review = resolveChampionshipBracketStructuralReview({
+      payload: reviewPayload,
+      championshipSports: sports,
+      teams: [
+        ...teams,
+        buildTeam("team-3", "Atlética C"),
+        buildTeam("team-4", "Atlética D"),
+      ],
+    });
+    const entries =
+      review.days[0]?.locations[0]?.courts[0]?.estimated_match_entries ?? [];
+    const finalSlot = resolveChampionshipBracketStructuralScheduleSlots(review).find(
+      (slot) => slot.phase == "FINAL",
+    );
+
+    expect(recommendation.competition_summaries[0]).toEqual(
+      expect.objectContaining({
+        required_match_count: 5,
+        resolved_match_count: 5,
+        shortage_match_count: 0,
+      }),
+    );
+    expect(recommendedMatchCount).toBe(5);
+    expect(entries.map((entry) => entry.phase)).toEqual([
+      "GROUP_STAGE",
+      "GROUP_STAGE",
+      "SEMIFINAL",
+      "SEMIFINAL",
+      "FINAL",
+    ]);
+    expect(finalSlot).toEqual(
+      expect.objectContaining({
+        phase: "FINAL",
+        match_kind: "KNOCKOUT",
+        manual_final: false,
+      }),
+    );
   });
 
   it("respeita a disponibilidade do naipe na data antes de alternar a projeção local", () => {
@@ -2238,6 +2482,7 @@ describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
     expires_at: "2099-09-19T00:00:00.000Z",
     is_valid_for_creation: true,
     generated_at: "2026-08-13T00:00:00.000Z",
+    preview_match_count: 12,
     result: null,
   };
 
@@ -2265,6 +2510,51 @@ describe("resolveChampionshipBracketExactPreviewCacheValidity", () => {
           is_valid_for_creation: true,
         },
         payloadSignature,
+      }),
+    ).toBe(false);
+  });
+
+  it("aceita a contagem persistida sem restaurar a cronologia", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache,
+        payloadSignature,
+        expectedMatchCount: 12,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejeita uma prévia vazia quando a revisão prevê partidas", () => {
+    expect(
+      resolveChampionshipBracketExactPreviewCacheValidity({
+        cache: {
+          ...cache,
+          preview_match_count: 0,
+          result: {
+            ok: true,
+            message: null,
+            server_payload_signature: "server-v8",
+            generation_signature: "generation-v8",
+            match_numbering_mode: "GLOBAL" as const,
+            summary: {
+              total_matches: 0,
+              group_stage_matches: 0,
+              knockout_matches: 0,
+              scheduled_matches: 0,
+              occupied_minutes: 0,
+              available_minutes: 0,
+              utilization_percentage: 0,
+              free_windows: 0,
+              conflict_count: 0,
+              warning_count: 0,
+              games_by_day: [],
+            },
+            days: [],
+            diagnostics: [],
+          },
+        },
+        payloadSignature,
+        expectedMatchCount: 1,
       }),
     ).toBe(false);
   });

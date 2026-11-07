@@ -699,14 +699,16 @@ export function useMatches({
           const championshipSeasonKeys = [
             ...new Set(matchRows.map((match) => `${match.championship_id}:${match.season_year}`)),
           ];
-          const runtimeContexts = await Promise.all(
-            championshipSeasonKeys.map((key) => {
-              const separatorIndex = key.lastIndexOf(":");
-              const resolvedChampionshipId = key.slice(0, separatorIndex);
-              const resolvedSeasonYear = Number(key.slice(separatorIndex + 1));
-              return getAwsMatchRuntimeContext(resolvedChampionshipId, resolvedSeasonYear);
-            }),
-          );
+          const runtimeContexts = refreshOperationalContext
+            ? await Promise.all(
+                championshipSeasonKeys.map((key) => {
+                  const separatorIndex = key.lastIndexOf(":");
+                  const resolvedChampionshipId = key.slice(0, separatorIndex);
+                  const resolvedSeasonYear = Number(key.slice(separatorIndex + 1));
+                  return getAwsMatchRuntimeContext(resolvedChampionshipId, resolvedSeasonYear);
+                }),
+              )
+            : [];
           const championshipSportsByKey = runtimeContexts
             .flatMap((context) => context.championshipSports)
             .reduce<Record<string, (typeof runtimeContexts)[number]["championshipSports"][number]>>(
@@ -742,9 +744,15 @@ export function useMatches({
               match_sets: match.match_sets ?? [],
             })),
           );
-          setOperationalContextMatches(resolvedOperationalContextMatches);
-          setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
-          setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
+          if (refreshOperationalContext) {
+            setOperationalContextMatches(resolvedOperationalContextMatches);
+            setChampionshipSportsForEstimatedStartTime(
+              championshipSportsForEstimatedStartTimeRows,
+            );
+            setChampionshipBracketEditionsForEstimatedStartTime(
+              latestChampionshipBracketEditions,
+            );
+          }
           return;
         }
 

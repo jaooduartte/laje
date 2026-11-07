@@ -75,6 +75,52 @@ export interface GroupStageMatchBracketBinding {
   team_ids: string[];
 }
 
+export interface ChampionshipBracketEditionSportSelection {
+  sportIds: Set<string>;
+  hasConfiguredSelection: boolean;
+}
+
+export function resolveChampionshipBracketEditionSportSelection(
+  championshipBracketView: ChampionshipBracketView,
+): ChampionshipBracketEditionSportSelection {
+  let payloadSnapshot: unknown = championshipBracketView.edition?.payload_snapshot;
+
+  if (typeof payloadSnapshot == "string") {
+    try {
+      payloadSnapshot = JSON.parse(payloadSnapshot);
+    } catch {
+      payloadSnapshot = null;
+    }
+  }
+
+  if (
+    payloadSnapshot != null &&
+    typeof payloadSnapshot == "object" &&
+    !Array.isArray(payloadSnapshot)
+  ) {
+    const enabledSportIds = (payloadSnapshot as { enabled_sport_ids?: unknown }).enabled_sport_ids;
+
+    if (Array.isArray(enabledSportIds)) {
+      return {
+        sportIds: new Set(
+          enabledSportIds.filter(
+            (sportId): sportId is string => typeof sportId == "string" && sportId.length > 0,
+          ),
+        ),
+        hasConfiguredSelection: true,
+      };
+    }
+  }
+
+  const sportIds = new Set(
+    championshipBracketView.competitions
+      .map((competition) => competition.sport_id)
+      .filter((sportId) => Boolean(sportId)),
+  );
+
+  return { sportIds, hasConfiguredSelection: sportIds.size > 0 };
+}
+
 export const TEAM_DIVISION_LABELS: Record<TeamDivision, string> = {
   [TeamDivision.DIVISAO_PRINCIPAL]: "Divisão Principal",
   [TeamDivision.DIVISAO_ACESSO]: "Divisão de Acesso",

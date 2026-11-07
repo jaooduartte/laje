@@ -55,6 +55,16 @@ vi.mock("@/hooks/useChampionshipYellowCardDiscipline", () => ({
   }),
 }));
 
+vi.mock("@/hooks/useChampionshipBracket", () => ({
+  useChampionshipBracket: () => ({
+    championshipBracketView: {
+      edition: { payload_snapshot: { enabled_sport_ids: ["futsal"] } },
+      competitions: [],
+    },
+    loading: false,
+  }),
+}));
+
 vi.mock("@/hooks/useChampionshipSeasonRuntime", () => ({
   useChampionshipSeasonRuntime: () => ({ usesDivisions: false }),
 }));
@@ -95,8 +105,15 @@ describe("AdminDiscipline", () => {
     render(
       <AdminDiscipline
         championship={championship}
-        sports={[]}
-        championshipSports={[championshipSport]}
+        sports={[{ id: "basketball", name: "Basquete", created_at: "2026-01-01T00:00:00.000Z" }]}
+        championshipSports={[
+          championshipSport,
+          {
+            ...championshipSport,
+            id: "championship-sport-2",
+            sport_id: "basketball",
+          },
+        ]}
         availableSeasonYears={[2026]}
       />,
     );
@@ -109,6 +126,7 @@ describe("AdminDiscipline", () => {
     expect(screen.getByText("Mais cartões")).toBeInTheDocument();
     expect(screen.getByText("Suspensos primeiro")).toBeInTheDocument();
     expect(screen.queryByText("Misto")).not.toBeInTheDocument();
+    expect(screen.queryByText("Basquete")).not.toBeInTheDocument();
     expect(screen.queryByText("Todas as divisões")).not.toBeInTheDocument();
     expect(screen.getByPlaceholderText("Buscar atleta")).toHaveClass("sm:w-2/3");
   });

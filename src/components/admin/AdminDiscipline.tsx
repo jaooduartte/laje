@@ -4,8 +4,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
+import { useChampionshipBracket } from "@/hooks/useChampionshipBracket";
 import { ChampionshipSportNaipeMode, MatchNaipe } from "@/lib/enums";
-import { MATCH_NAIPE_LABELS, TEAM_DIVISION_LABELS } from "@/lib/championship";
+import {
+  MATCH_NAIPE_LABELS,
+  TEAM_DIVISION_LABELS,
+  resolveChampionshipBracketEditionSportSelection,
+} from "@/lib/championship";
 import { useChampionshipSeasonRuntime } from "@/hooks/useChampionshipSeasonRuntime";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 
@@ -39,6 +44,20 @@ export function AdminDiscipline({
     championshipId: championship.id,
     seasonYear: Number(seasonYear),
   });
+  const { championshipBracketView, loading: championshipBracketLoading } =
+    useChampionshipBracket({
+      championshipId: championship.id,
+      seasonYear: Number(seasonYear),
+      realtimeEnabled: false,
+    });
+  const editionSportSelection = useMemo(
+    () =>
+      championshipBracketView.edition
+        ? resolveChampionshipBracketEditionSportSelection(championshipBracketView)
+        : null,
+    [championshipBracketView],
+  );
+  const hasConfiguredEditionSports = editionSportSelection?.hasConfiguredSelection ?? false;
   const { usesDivisions } = useChampionshipSeasonRuntime({
     championship,
     seasonYear: Number(seasonYear),
@@ -50,12 +69,19 @@ export function AdminDiscipline({
     );
     const sportById = new Map(
       sports
-        .filter((sport) => configuredSportIds.has(sport.id))
+        .filter(
+          (sport) =>
+            configuredSportIds.has(sport.id) &&
+            (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(sport.id)),
+        )
         .map((sport) => [sport.id, sport]),
     );
 
     (discipline?.athletes ?? []).forEach((athlete) => {
-      if (!sportById.has(athlete.sport_id)) {
+      if (
+        (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(athlete.sport_id)) &&
+        !sportById.has(athlete.sport_id)
+      ) {
         sportById.set(athlete.sport_id, {
           id: athlete.sport_id,
           name: athlete.sport_name,
@@ -67,7 +93,13 @@ export function AdminDiscipline({
     return [...sportById.values()].sort((firstSport, secondSport) =>
       firstSport.name.localeCompare(secondSport.name, "pt-BR"),
     );
-  }, [championshipSports, discipline?.athletes, sports]);
+  }, [
+    championshipSports,
+    discipline?.athletes,
+    editionSportSelection,
+    hasConfiguredEditionSports,
+    sports,
+  ]);
 
   const availableNaipeOptions = useMemo(() => {
     const scopedChampionshipSports =
@@ -95,10 +127,14 @@ export function AdminDiscipline({
   }, [championshipSports, sportId]);
 
   useEffect(() => {
-    if (sportId != ALL_FILTER && !availableSports.some((sport) => sport.id == sportId)) {
+    if (
+      !championshipBracketLoading &&
+      sportId != ALL_FILTER &&
+      !availableSports.some((sport) => sport.id == sportId)
+    ) {
       setSportId(ALL_FILTER);
     }
-  }, [availableSports, sportId]);
+  }, [availableSports, championshipBracketLoading, sportId]);
 
   useEffect(() => {
     if (naipe != ALL_FILTER && !availableNaipeOptions.includes(naipe as MatchNaipe)) {

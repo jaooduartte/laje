@@ -132,6 +132,57 @@ const {
   },
 }));
 
+function createGroupStageStanding(
+  teamId: string,
+  teamName: string,
+  points: number,
+  groupRank: number,
+): Record<string, unknown> {
+  return {
+    competition_id: "competition-1",
+    sport_id: "sport-1",
+    sport_name: "Futebol Society",
+    naipe: MatchNaipe.MASCULINO,
+    division: TeamDivision.DIVISAO_PRINCIPAL,
+    group_id: "group-1",
+    group_number: 1,
+    team_id: teamId,
+    team_name: teamName,
+    played: 1,
+    wins: points > 0 ? 1 : 0,
+    draws: 0,
+    losses: points > 0 ? 0 : 1,
+    goals_for: points > 0 ? 2 : 0,
+    goals_against: points > 0 ? 0 : 2,
+    goal_diff: points > 0 ? 2 : -2,
+    points,
+    comparison_points: points,
+    yellow_cards: 0,
+    red_cards: 0,
+    blue_cards: 0,
+    two_minute_penalties: 0,
+    sets_for: 0,
+    sets_against: 0,
+    rally_points_for: 0,
+    rally_points_against: 0,
+    group_rank: groupRank,
+    comparison_rank: groupRank,
+    comparison_goals_for: points > 0 ? 2 : 0,
+    comparison_goals_against: points > 0 ? 0 : 2,
+    comparison_goal_diff: points > 0 ? 2 : -2,
+    comparison_yellow_cards: 0,
+    comparison_red_cards: 0,
+    comparison_blue_cards: 0,
+    comparison_two_minute_penalties: 0,
+    comparison_sets_for: 0,
+    comparison_sets_against: 0,
+    comparison_rally_points_for: 0,
+    comparison_rally_points_against: 0,
+    qualification_rank: null,
+    qualification_pool_rank: null,
+  };
+}
+
 vi.mock("sonner", () => ({
   toast: {
     error: vi.fn(),
@@ -545,7 +596,182 @@ describe("AdminStandings", () => {
     expect(mostRecentTeamStandingsProps).toMatchObject({ isLoading: false });
   });
 
+  it("exibe somente os pontos de grupos nos recortes de modalidade e naipe", () => {
+    useStandingsMock.mockReturnValue({
+      standings: [
+        {
+          id: "standing-team-1",
+          team_id: "team-1",
+          team_name: "Atlética A",
+          team_city: "Joinville",
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          played: 2,
+          wins: 2,
+          draws: 0,
+          losses: 0,
+          goals_for: 4,
+          goals_against: 1,
+          goal_diff: 3,
+          points: 6,
+          yellow_cards: 0,
+          red_cards: 0,
+        },
+        {
+          id: "standing-team-2",
+          team_id: "team-2",
+          team_name: "Atlética B",
+          team_city: "Joinville",
+          sport_id: "sport-1",
+          naipe: MatchNaipe.MASCULINO,
+          division: TeamDivision.DIVISAO_PRINCIPAL,
+          played: 2,
+          wins: 1,
+          draws: 0,
+          losses: 1,
+          goals_for: 2,
+          goals_against: 2,
+          goal_diff: 0,
+          points: 3,
+          yellow_cards: 0,
+          red_cards: 0,
+        },
+      ],
+      loading: false,
+      refetch: vi.fn(),
+    });
+    groupStageStandingsState.current = [
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futebol Society",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-1",
+        team_name: "Atlética A",
+        played: 1,
+        wins: 1,
+        draws: 0,
+        losses: 0,
+        goals_for: 2,
+        goals_against: 0,
+        goal_diff: 2,
+        points: 3,
+        comparison_points: 3,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 0,
+        sets_against: 0,
+        rally_points_for: 0,
+        rally_points_against: 0,
+        group_rank: 1,
+        comparison_rank: 1,
+        comparison_goals_for: 2,
+        comparison_goals_against: 0,
+        comparison_goal_diff: 2,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 0,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 0,
+        comparison_rally_points_against: 0,
+        qualification_rank: null,
+        qualification_pool_rank: null,
+      },
+      {
+        competition_id: "competition-1",
+        sport_id: "sport-1",
+        sport_name: "Futebol Society",
+        naipe: MatchNaipe.MASCULINO,
+        division: TeamDivision.DIVISAO_PRINCIPAL,
+        group_id: "group-1",
+        group_number: 1,
+        team_id: "team-2",
+        team_name: "Atlética B",
+        played: 1,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+        goals_for: 0,
+        goals_against: 2,
+        goal_diff: -2,
+        points: 0,
+        comparison_points: 0,
+        yellow_cards: 0,
+        red_cards: 0,
+        blue_cards: 0,
+        two_minute_penalties: 0,
+        sets_for: 0,
+        sets_against: 0,
+        rally_points_for: 0,
+        rally_points_against: 0,
+        group_rank: 2,
+        comparison_rank: 2,
+        comparison_goals_for: 0,
+        comparison_goals_against: 2,
+        comparison_goal_diff: -2,
+        comparison_yellow_cards: 0,
+        comparison_red_cards: 0,
+        comparison_blue_cards: 0,
+        comparison_two_minute_penalties: 0,
+        comparison_sets_for: 0,
+        comparison_sets_against: 0,
+        comparison_rally_points_for: 0,
+        comparison_rally_points_against: 0,
+        qualification_rank: null,
+        qualification_pool_rank: null,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sport filter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Masculino" }));
+
+    const groupStandingsProps = teamStandingsTableMock.mock.calls
+      .map(([props]) => props)
+      .find((props) => {
+        const standings = props.standings as Array<{
+          team_id: string;
+          points: number;
+        }>;
+        return standings.some(
+          (standing) => standing.team_id == "team-1" && standing.points == 3,
+        ) && standings.some(
+          (standing) => standing.team_id == "team-2" && standing.points == 0,
+        );
+      });
+
+    expect(groupStandingsProps?.standings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ team_id: "team-1", points: 3 }),
+        expect.objectContaining({ team_id: "team-2", points: 0 }),
+      ]),
+    );
+  });
+
   it("reúne os melhores de cada grupo em uma tabela ao filtrar por posição", () => {
+    groupStageStandingsState.current = [
+      createGroupStageStanding("team-1", "Atlética A", 3, 1),
+      createGroupStageStanding("team-2", "Atlética B", 0, 2),
+    ];
+
     render(
       <AdminStandings
         selectedChampionship={selectedChampionship}
@@ -890,6 +1116,11 @@ describe("AdminStandings", () => {
   });
 
   it("não repete o badge de grupo quando a classificação já está separada por chave", () => {
+    groupStageStandingsState.current = [
+      createGroupStageStanding("team-1", "Atlética A", 3, 1),
+      createGroupStageStanding("team-2", "Atlética B", 0, 2),
+    ];
+
     render(
       <AdminStandings
         selectedChampionship={selectedChampionship}
@@ -1322,6 +1553,7 @@ describe("AdminStandings", () => {
       <AdminStandings
         selectedChampionship={{
           ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
           status,
         }}
         championshipSports={championshipSports}
@@ -1342,6 +1574,7 @@ describe("AdminStandings", () => {
       <AdminStandings
         selectedChampionship={{
           ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
           status: ChampionshipStatus.FINISHED,
         }}
         championshipSports={championshipSports}
@@ -1386,6 +1619,7 @@ describe("AdminStandings", () => {
       <AdminStandings
         selectedChampionship={{
           ...selectedChampionship,
+          code: ChampionshipCode.INTERLAJE,
           status: ChampionshipStatus.FINISHED,
         }}
         championshipSports={championshipSports}

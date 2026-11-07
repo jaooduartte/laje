@@ -393,6 +393,7 @@ function renderAdminMatchControl(params: {
   isFullQueueVisible?: boolean;
   fullQueueItemsCount?: number | null;
   onFullQueueVisibleChange?: (isVisible: boolean) => void;
+  championshipBracketView?: ChampionshipBracketView;
   onRefetch?: () => void | Promise<void>;
 }) {
   const onRefetch = params.onRefetch ?? vi.fn();
@@ -407,7 +408,7 @@ function renderAdminMatchControl(params: {
       championshipSports={params.championshipSports}
       isInitialLoading={params.isInitialLoading}
       isFetchingMatches={params.isFetchingMatches}
-      championshipBracketView={buildChampionshipBracketView()}
+      championshipBracketView={params.championshipBracketView ?? buildChampionshipBracketView()}
       matchBracketContextByMatchId={params.matchBracketContextByMatchId ?? {}}
       visualQueuePositionByMatchId={params.visualQueuePositionByMatchId}
       estimatedStartTimeByMatchId={params.estimatedStartTimeByMatchId}
@@ -433,6 +434,7 @@ function renderAdminMatchControl(params: {
     isFullQueueVisible?: boolean;
     fullQueueItemsCount?: number | null;
     onFullQueueVisibleChange?: (isVisible: boolean) => void;
+    championshipBracketView?: ChampionshipBracketView;
   }) => {
     renderResult.rerender(
       <AdminMatchControl
@@ -444,7 +446,7 @@ function renderAdminMatchControl(params: {
         championshipSports={nextParams.championshipSports}
         isInitialLoading={nextParams.isInitialLoading}
         isFetchingMatches={nextParams.isFetchingMatches}
-        championshipBracketView={buildChampionshipBracketView()}
+        championshipBracketView={nextParams.championshipBracketView ?? buildChampionshipBracketView()}
         matchBracketContextByMatchId={nextParams.matchBracketContextByMatchId ?? {}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
@@ -669,6 +671,7 @@ describe("AdminMatchControl", () => {
       id: "scheduled-match-without-live-filter",
       sport_id: "sport-futsal",
       status: MatchStatus.SCHEDULED,
+      division: TeamDivision.DIVISAO_ACESSO,
       home_team: buildTeam({
         id: "scheduled-home-without-live-filter",
         name: "Atlética Agendada",
@@ -678,6 +681,7 @@ describe("AdminMatchControl", () => {
       id: "live-match-without-live-filter",
       sport_id: "sport-futsal",
       status: MatchStatus.LIVE,
+      division: TeamDivision.DIVISAO_PRINCIPAL,
       home_team: buildTeam({
         id: "live-home-without-live-filter",
         name: "Atlética Ao Vivo",
@@ -693,6 +697,12 @@ describe("AdminMatchControl", () => {
 
     expect(screen.getByText("Atlética Agendada")).toBeInTheDocument();
     expect(screen.getAllByText("Atlética Ao Vivo")).not.toHaveLength(0);
+    expect(
+      within(resolveMatchCardElement("Atlética Agendada")).getByText("Divisão de Acesso"),
+    ).toBeInTheDocument();
+    expect(
+      within(resolveMatchCardElement("Atlética Ao Vivo")).getByText("Divisão Principal"),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: "Ocultar jogos que não estão ao vivo",
@@ -2672,6 +2682,39 @@ describe("AdminMatchControl", () => {
     expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute(
       "data-sports",
       "Futsal,Handebol",
+    );
+  });
+
+  it("limita os filtros à modalidade habilitada na edição gerada", () => {
+    const selectedSport = buildChampionshipSport({
+      id: "championship-selected-sport",
+      sport_id: "selected-sport",
+      sports: buildSport({ id: "selected-sport", name: "Beach Soccer" }),
+    });
+    const unselectedSport = buildChampionshipSport({
+      id: "championship-unselected-sport",
+      sport_id: "unselected-sport",
+      sports: buildSport({ id: "unselected-sport", name: "Vôlei de Praia" }),
+    });
+
+    renderAdminMatchControl({
+      matches: [],
+      championshipSports: [selectedSport, unselectedSport],
+      championshipBracketView: {
+        ...buildChampionshipBracketView(),
+        competitions: [
+          { sport_id: "unselected-sport" } as ChampionshipBracketView["competitions"][number],
+        ],
+        edition: {
+          ...buildChampionshipBracketView().edition!,
+          payload_snapshot: { enabled_sport_ids: ["selected-sport"] },
+        },
+      },
+    });
+
+    expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute(
+      "data-sports",
+      "Beach Soccer",
     );
   });
 

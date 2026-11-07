@@ -248,6 +248,11 @@ function resolveExactPreviewCache(
     events: [],
     is_valid_for_creation: parsedCache.is_valid_for_creation,
     generated_at: parsedCache.generated_at,
+    preview_match_count:
+      Number.isInteger(parsedCache.preview_match_count) &&
+      (parsedCache.preview_match_count as number) >= 0
+        ? (parsedCache.preview_match_count as number)
+        : previewResult?.summary?.total_matches ?? 0,
     result: previewResult,
   };
 }
@@ -567,7 +572,10 @@ function resolveScheduleCourtSportMatchTargets(
       !sportIds.includes(parsedTarget.sport_id) ||
       typeof parsedTarget.planned_match_count != "number" ||
       !Number.isInteger(parsedTarget.planned_match_count) ||
-      parsedTarget.planned_match_count <= 0
+      parsedTarget.planned_match_count < 0 ||
+      (parsedTarget.planned_match_count == 0 &&
+        parsedTarget.planning_mode != "AUTO" &&
+        parsedTarget.planning_mode != "MANUAL")
     ) {
       continue;
     }
@@ -1698,16 +1706,25 @@ export class ChampionshipBracketWizardDraftDTO {
     }
 
     try {
-      const parsed_storage_value = JSON.parse(
-        storage_value,
-      ) as ChampionshipBracketStoredDraftValue;
+      let parsed_storage_value: unknown = JSON.parse(storage_value);
+      if (typeof parsed_storage_value == "string") {
+        parsed_storage_value = JSON.parse(parsed_storage_value);
+      }
+      if (
+        !parsed_storage_value ||
+        typeof parsed_storage_value != "object" ||
+        Array.isArray(parsed_storage_value)
+      ) {
+        return null;
+      }
+      const storedDraft = parsed_storage_value as ChampionshipBracketStoredDraftValue;
       const stepFlowVersion = resolveStepFlowVersion(
-        parsed_storage_value.step_flow_version,
+        storedDraft.step_flow_version,
       );
       const currentStepIndex = resolveCurrentStepIndexByStepFlowVersion(
         Math.max(
           0,
-          resolveNumberValue(parsed_storage_value.current_step_index, 0),
+          resolveNumberValue(storedDraft.current_step_index, 0),
         ),
         stepFlowVersion,
       );
@@ -1717,7 +1734,7 @@ export class ChampionshipBracketWizardDraftDTO {
           Math.max(
             0,
             resolveNumberValue(
-              parsed_storage_value.highest_unlocked_step_index,
+              storedDraft.highest_unlocked_step_index,
               currentStepIndex,
             ),
           ),
@@ -1726,20 +1743,20 @@ export class ChampionshipBracketWizardDraftDTO {
       );
 
       const scheduleDays = resolveScheduleDays(
-        parsed_storage_value.schedule_days,
+        storedDraft.schedule_days,
       );
       const schedulePeriods = resolveSchedulePeriods(
-        parsed_storage_value.schedule_periods,
+        storedDraft.schedule_periods,
       );
       const competitionPeriodAvailability =
         resolveCompetitionPeriodAvailability(
-          parsed_storage_value.competition_period_availability,
+          storedDraft.competition_period_availability,
         );
       const teamCompetitionAvailability = resolveTeamCompetitionAvailability(
-        parsed_storage_value.team_competition_availability,
+        storedDraft.team_competition_availability,
       );
       const selectedCompetitionKeysByTeamId = Object.entries(
-        parsed_storage_value.selected_competition_keys_by_team_id ?? {},
+        storedDraft.selected_competition_keys_by_team_id ?? {},
       ).reduce<Record<string, string[]>>(
         (carry, [team_id, selected_competition_keys]) => {
           carry[team_id] = resolveStringArray(selected_competition_keys);
@@ -1774,10 +1791,10 @@ export class ChampionshipBracketWizardDraftDTO {
           : selectedCompetitionKeysByTeamId;
 
       const competitionDateAvailability = Array.isArray(
-        parsed_storage_value.competition_date_availability,
+        storedDraft.competition_date_availability,
       )
         ? resolveCompetitionDateAvailability(
-            parsed_storage_value.competition_date_availability,
+            storedDraft.competition_date_availability,
           )
         : resolveLegacyCompetitionDateAvailability({
             scheduleDays,
@@ -1787,10 +1804,10 @@ export class ChampionshipBracketWizardDraftDTO {
           });
 
       const teamCompetitionDateAvailability = Array.isArray(
-        parsed_storage_value.team_competition_date_availability,
+        storedDraft.team_competition_date_availability,
       )
         ? resolveTeamCompetitionDateAvailability(
-            parsed_storage_value.team_competition_date_availability,
+            storedDraft.team_competition_date_availability,
           )
         : resolveLegacyTeamCompetitionDateAvailability({
             scheduleDays,
@@ -1803,16 +1820,16 @@ export class ChampionshipBracketWizardDraftDTO {
         current_step_index: currentStepIndex,
         highest_unlocked_step_index: highestUnlockedStepIndex,
         season_settings: resolveSeasonSettings(
-          parsed_storage_value.season_settings,
+          storedDraft.season_settings,
         ),
         enabled_sport_ids: resolveStringArray(
-          parsed_storage_value.enabled_sport_ids,
+          storedDraft.enabled_sport_ids,
         ),
         selected_team_ids: resolveStringArray(
-          parsed_storage_value.selected_team_ids,
+          storedDraft.selected_team_ids,
         ),
         selected_sport_ids_by_team_id: Object.entries(
-          parsed_storage_value.selected_sport_ids_by_team_id ?? {},
+          storedDraft.selected_sport_ids_by_team_id ?? {},
         ).reduce<Record<string, string[]>>(
           (carry, [team_id, selected_sport_ids]) => {
             carry[team_id] = resolveStringArray(selected_sport_ids);
@@ -1821,55 +1838,55 @@ export class ChampionshipBracketWizardDraftDTO {
           {},
         ),
         show_estimated_start_time_on_cards_by_sport_id: resolveBooleanRecord(
-          parsed_storage_value.show_estimated_start_time_on_cards_by_sport_id,
+          storedDraft.show_estimated_start_time_on_cards_by_sport_id,
         ),
         selected_competition_keys_by_team_id:
           selectedCompetitionKeysByTeamId,
         should_apply_modalities_to_all_teams: resolveBooleanValue(
-          parsed_storage_value.should_apply_modalities_to_all_teams,
+          storedDraft.should_apply_modalities_to_all_teams,
           true,
         ),
         should_apply_naipes_to_all_teams: resolveBooleanValue(
-          parsed_storage_value.should_apply_naipes_to_all_teams,
+          storedDraft.should_apply_naipes_to_all_teams,
           true,
         ),
         should_replicate_previous_schedule_day: resolveBooleanValue(
-          parsed_storage_value.should_replicate_previous_schedule_day,
+          storedDraft.should_replicate_previous_schedule_day,
           false,
         ),
         competition_config_by_key: resolveCompetitionConfigByKey(
-          parsed_storage_value.competition_config_by_key,
+          storedDraft.competition_config_by_key,
         ),
         group_assignments_by_competition_key:
           resolveGroupAssignmentsByCompetitionKey(
-            parsed_storage_value.group_assignments_by_competition_key,
+            storedDraft.group_assignments_by_competition_key,
           ),
         group_order_by_competition_key: resolveGroupOrderByCompetitionKey(
-          parsed_storage_value.group_order_by_competition_key,
+          storedDraft.group_order_by_competition_key,
         ),
         schedule_days: scheduleDays,
         competition_date_availability: competitionDateAvailability,
         team_competition_date_availability: teamCompetitionDateAvailability,
         individual_event_configs: resolveIndividualEventConfigs(
-          parsed_storage_value.individual_event_configs,
+          storedDraft.individual_event_configs,
         ),
         individual_session_configs: resolveIndividualSessionConfigs(
-          parsed_storage_value.individual_session_configs,
+          storedDraft.individual_session_configs,
           scheduleDays,
         ),
         resource_locks: resolveResourceLocks(
-          parsed_storage_value.resource_locks,
+          storedDraft.resource_locks,
           scheduleDays,
         ),
         match_numbering_mode: resolveMatchNumberingModeValue(
-          parsed_storage_value.match_numbering_mode,
+          storedDraft.match_numbering_mode,
         ),
         knockout_program_blocks: resolveKnockoutProgramBlocks(
-          parsed_storage_value.knockout_program_blocks,
+          storedDraft.knockout_program_blocks,
           scheduleDays,
         ),
         exact_preview_cache: resolveExactPreviewCache(
-          parsed_storage_value.exact_preview_cache,
+          storedDraft.exact_preview_cache,
         ),
       });
     } catch {
@@ -2144,6 +2161,8 @@ export class ChampionshipBracketWizardDraftDTO {
             is_valid_for_creation:
               this.form_values.exact_preview_cache.is_valid_for_creation,
             generated_at: this.form_values.exact_preview_cache.generated_at,
+            preview_match_count:
+              this.form_values.exact_preview_cache.preview_match_count,
             // A cronologia pode ter centenas de itens. Ela fica somente no estado
             // da tela; o rascunho guarda apenas as assinaturas de confirmação.
             result: null,

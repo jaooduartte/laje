@@ -670,7 +670,7 @@ export function AdminPageView({
                     triggerElement;
                 }}
                 className={cn(
-                  "app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none",
+                  "app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:focus-visible:ring-0 data-[state=active]:focus-visible:ring-offset-0",
                   adminTabItem.className,
                 )}
               >

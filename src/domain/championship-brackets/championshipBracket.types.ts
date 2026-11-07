@@ -501,6 +501,7 @@ export interface ChampionshipBracketExactPreviewCache {
   /** Só é verdadeiro quando a prévia não contém pendências impeditivas. */
   is_valid_for_creation: boolean;
   generated_at: string;
+  preview_match_count: number;
   /**
    * Mantido apenas durante a sessão para renderizar a cronologia calculada.
    * O rascunho persiste somente as assinaturas, nunca a lista temporária de jogos.

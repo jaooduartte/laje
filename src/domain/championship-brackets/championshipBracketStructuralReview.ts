@@ -349,9 +349,11 @@ export function resolveChampionshipBracketExactPreviewPayloadSignature(
 export function resolveChampionshipBracketExactPreviewCacheValidity({
   cache,
   payloadSignature,
+  expectedMatchCount = 0,
 }: {
   cache: ChampionshipBracketExactPreviewCache | null | undefined;
   payloadSignature: string;
+  expectedMatchCount?: number;
 }) {
   return (
     cache?.payload_signature == payloadSignature &&
@@ -365,6 +367,8 @@ export function resolveChampionshipBracketExactPreviewCacheValidity({
     cache.status == "COMPLETED" &&
     typeof cache.expires_at == "string" &&
     new Date(cache.expires_at).getTime() > Date.now() &&
+    (expectedMatchCount <= 0 ||
+      (cache.preview_match_count ?? cache.result?.summary?.total_matches ?? 0) > 0) &&
     cache.is_valid_for_creation
   );
 }
@@ -513,10 +517,19 @@ function resolveCompetitionGroupSizes({
   competition: ChampionshipBracketSetupFormValues["competitions"][number];
   teamIds: string[];
 }) {
-  if (competition.groups.length > 0) {
-    return competition.groups
-      .map((group) => group.team_ids.length)
-      .filter((groupSize) => groupSize > 0);
+  const configuredGroupSizes = competition.groups
+    .map((group) => group.team_ids.length)
+    .filter((groupSize) => groupSize > 0);
+  const assignedTeamCount = configuredGroupSizes.reduce(
+    (totalTeamCount, groupSize) => totalTeamCount + groupSize,
+    0,
+  );
+
+  if (
+    configuredGroupSizes.length > 0 &&
+    (teamIds.length == 0 || assignedTeamCount >= teamIds.length)
+  ) {
+    return configuredGroupSizes;
   }
 
   const groupSizeByNumber = new Map<number, number>();
@@ -580,20 +593,22 @@ function resolveKnockoutPhaseDescriptors({
   >[] = [];
   let currentBracketSize = projectedBracketSize;
 
-  while (currentBracketSize > 2) {
+  while (currentBracketSize >= 2) {
     const phaseDescriptor =
-      currentBracketSize == 32
-        ? { phase: "ROUND_OF_32" as const, phase_label: "32-avos de final" }
-        : currentBracketSize == 16
-          ? { phase: "ROUND_OF_16" as const, phase_label: "Oitavas de final" }
-          : currentBracketSize == 8
-            ? {
-                phase: "QUARTERFINAL" as const,
-                phase_label: "Quartas de final",
-              }
-            : currentBracketSize == 4
-              ? { phase: "SEMIFINAL" as const, phase_label: "Semifinal" }
-              : { phase: null, phase_label: "Mata-mata" };
+      currentBracketSize == 2
+        ? { phase: "FINAL" as const, phase_label: "Final" }
+        : currentBracketSize == 32
+          ? { phase: "ROUND_OF_32" as const, phase_label: "32-avos de final" }
+          : currentBracketSize == 16
+            ? { phase: "ROUND_OF_16" as const, phase_label: "Oitavas de final" }
+            : currentBracketSize == 8
+              ? {
+                  phase: "QUARTERFINAL" as const,
+                  phase_label: "Quartas de final",
+                }
+              : currentBracketSize == 4
+                ? { phase: "SEMIFINAL" as const, phase_label: "Semifinal" }
+                : { phase: null, phase_label: "Mata-mata" };
     const matchCount = Math.max(1, Math.floor(currentBracketSize / 2));
 
     descriptors.push(
@@ -609,16 +624,42 @@ function resolveKnockoutPhaseDescriptors({
   return descriptors;
 }
 
+function resolveManualFinalCompetitionKeySet({
+  competitions,
+  knockoutProgramBlocks,
+}: {
+  competitions: ChampionshipBracketSetupFormValues["competitions"];
+  knockoutProgramBlocks: ChampionshipBracketSetupFormValues["knockout_program_blocks"];
+}) {
+  return new Set(
+    knockoutProgramBlocks
+      .filter((programBlock) => programBlock.phase == "FINAL")
+      .flatMap((programBlock) =>
+        competitions
+          .filter(
+            (competition) =>
+              competition.sport_id == programBlock.sport_id &&
+              programBlock.naipe_sequence.includes(competition.naipe) &&
+              (programBlock.division_scope == "ALL" ||
+                competition.division == programBlock.division_scope),
+          )
+          .map((competition) => resolveCompetitionKey(competition)),
+      ),
+  );
+}
+
 function resolveCompetitionEstimatedMatchDescriptors({
   competition,
   sportName,
   durationMinutes,
   teamIds,
+  includeFinal,
 }: {
   competition: ChampionshipBracketSetupFormValues["competitions"][number];
   sportName: string;
   durationMinutes: number;
   teamIds: string[];
+  includeFinal: boolean;
 }): EstimatedMatchDescriptor[] {
   const competitionKey = resolveCompetitionKey(competition);
   const groupStageMatchCount = resolveGroupStageMatchCount(
@@ -634,6 +675,13 @@ function resolveCompetitionEstimatedMatchDescriptors({
       competition.should_complete_knockout_with_best_second_placed_teams,
   });
 
+  const knockoutPhaseDescriptors = resolveKnockoutPhaseDescriptors({
+    projectedBracketSize: knockoutProjection.projected_bracket_size,
+    durationMinutes,
+  }).filter(
+    (phaseDescriptor) => includeFinal || phaseDescriptor.phase != "FINAL",
+  );
+
   return [
     ...Array.from({ length: groupStageMatchCount }, () => ({
       competition_key: competitionKey,
@@ -645,10 +693,7 @@ function resolveCompetitionEstimatedMatchDescriptors({
       phase_label: "Fase de grupos",
       duration_minutes: durationMinutes,
     })),
-    ...resolveKnockoutPhaseDescriptors({
-      projectedBracketSize: knockoutProjection.projected_bracket_size,
-      durationMinutes,
-    }).map((phaseDescriptor) => ({
+    ...knockoutPhaseDescriptors.map((phaseDescriptor) => ({
       competition_key: competitionKey,
       sport_id: competition.sport_id,
       sport_name: sportName,
@@ -771,6 +816,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
   sportName,
   durationMinutes,
   collectiveTeamIdsByCompetitionKey,
+  manualFinalCompetitionKeySet,
   scheduleDay,
   competitionDateAvailabilityByKey,
   consumedEstimatedDescriptorCountByCompetitionKey,
@@ -782,6 +828,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
   sportName: string;
   durationMinutes: number;
   collectiveTeamIdsByCompetitionKey: Record<string, string[]>;
+  manualFinalCompetitionKeySet: Set<string>;
   scheduleDay:
     | ChampionshipBracketSetupFormValues["schedule_days"][number]
     | ChampionshipBracketWizardDraftFormValues["schedule_days"][number];
@@ -829,6 +876,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
         sportName,
         durationMinutes,
         teamIds: collectiveTeamIdsByCompetitionKey[competitionKey] ?? [],
+        includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
       }).slice(consumedDescriptors);
 
       if (remainingDescriptors.length == 0) {
@@ -942,6 +990,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
             sportName,
             durationMinutes,
             teamIds: collectiveTeamIdsByCompetitionKey[competitionKey] ?? [],
+            includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
           });
           const consumedDescriptorCount = Math.min(
             consumedEstimatedDescriptorCountByCompetitionKey.get(competitionKey) ?? 0,
@@ -1281,6 +1330,10 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
   const collectiveCompetitions = competitions.filter((competition) => {
     return !sportMetadataBySportId[competition.sport_id]?.is_individual;
   });
+  const manualFinalCompetitionKeySet = resolveManualFinalCompetitionKeySet({
+    competitions: collectiveCompetitions,
+    knockoutProgramBlocks,
+  });
   const collectiveCompetitionKeysBySportId = collectiveCompetitions.reduce<
     Record<string, string[]>
   >((carry, competition) => {
@@ -1351,7 +1404,10 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
       teamIds:
         collectiveTeamIdsByCompetitionKey[resolveCompetitionKey(competition)] ??
         [],
-    }).filter((descriptor) => descriptor.phase != "FINAL");
+      includeFinal: !manualFinalCompetitionKeySet.has(
+        resolveCompetitionKey(competition),
+      ),
+    });
 
     carry[competition.sport_id] =
       (carry[competition.sport_id] ?? 0) + descriptors.length;
@@ -1370,7 +1426,8 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
         sportMetadata?.default_match_duration_minutes ??
         DEFAULT_MATCH_DURATION_MINUTES,
       teamIds: collectiveTeamIdsByCompetitionKey[competitionKey] ?? [],
-    }).filter((descriptor) => descriptor.phase != "FINAL");
+      includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
+    });
 
     carry[competitionKey] = descriptors.length;
     return carry;
@@ -1446,7 +1503,24 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
         const freeCourtMinutes = resolveIntervalsMinutes(freeCourtIntervals);
         let reservedMinutes = 0;
 
-        const orderedTargets = [...court.sport_match_targets].sort(
+        const targetBySportId = new Map(
+          court.sport_match_targets.map((target) => [target.sport_id, target]),
+        );
+
+        court.sport_ids.forEach((sportId) => {
+          if (
+            collectiveCompetitionKeysBySportId[sportId]?.length &&
+            !targetBySportId.has(sportId)
+          ) {
+            targetBySportId.set(sportId, {
+              sport_id: sportId,
+              planned_match_count: 0,
+              planning_mode: "AUTO",
+            });
+          }
+        });
+
+        const orderedTargets = [...targetBySportId.values()].sort(
           (left, right) =>
             (sportMetadataBySportId[left.sport_id]?.sport_name ?? "").localeCompare(
               sportMetadataBySportId[right.sport_id]?.sport_name ?? "",
@@ -1596,6 +1670,7 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
       sportName: recommendationContext.sportName,
       durationMinutes: recommendationContext.durationMinutes,
       collectiveTeamIdsByCompetitionKey,
+      manualFinalCompetitionKeySet,
       scheduleDay: recommendationContext.scheduleDay,
       competitionDateAvailabilityByKey,
       consumedEstimatedDescriptorCountByCompetitionKey,
@@ -1743,6 +1818,10 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
     )
     .map((competition) => {
       const competitionKey = resolveCompetitionKey(competition);
+      const manualFinalCompetitionKeySet = resolveManualFinalCompetitionKeySet({
+        competitions: [competition],
+        knockoutProgramBlocks: payload.knockout_program_blocks,
+      });
       const matchDescriptors = resolveCompetitionEstimatedMatchDescriptors({
         competition,
         sportName:
@@ -1753,6 +1832,7 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
             ?.default_match_duration_minutes ??
           DEFAULT_MATCH_DURATION_MINUTES,
         teamIds: teamIdsByCompetitionKey[competitionKey] ?? [],
+        includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
       });
       const knockoutProjection = resolveChampionshipBracketKnockoutProjection({
         groups_count: competition.groups_count,
@@ -1771,7 +1851,10 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
         division: competition.division,
         expected_match_count:
           matchDescriptors.length +
-          (knockoutProjection.projected_bracket_size >= 2 ? 1 : 0),
+          (manualFinalCompetitionKeySet.has(competitionKey) &&
+          knockoutProjection.projected_bracket_size >= 2
+            ? 1
+            : 0),
       };
     })
     .sort((left, right) => {
@@ -1863,6 +1946,10 @@ export function resolveChampionshipBracketStructuralReview({
   }, {});
   const collectiveCompetitions = payload.competitions.filter((competition) => {
     return !sportMetadataBySportId[competition.sport_id]?.is_individual;
+  });
+  const manualFinalCompetitionKeySet = resolveManualFinalCompetitionKeySet({
+    competitions: collectiveCompetitions,
+    knockoutProgramBlocks: payload.knockout_program_blocks,
   });
   const collectiveCompetitionKeys = collectiveCompetitions.map((competition) =>
     resolveCompetitionKey(competition),
@@ -2208,6 +2295,7 @@ export function resolveChampionshipBracketStructuralReview({
                 sportName: sportMetadata?.sport_name ?? "Modalidade",
                 durationMinutes,
                 collectiveTeamIdsByCompetitionKey,
+                manualFinalCompetitionKeySet,
                 scheduleDay,
                 competitionDateAvailabilityByKey,
                 consumedEstimatedDescriptorCountByCompetitionKey,

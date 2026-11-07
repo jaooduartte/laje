@@ -54,7 +54,7 @@ export function AdminBracketDrawModal({
       confirmButtonTimeoutReference.current = null;
     }
 
-    if (!open || !drawnTeamId || drawingTeamIds.length === 0) {
+    if (!open || !drawnTeamId) {
       animatedDrawnTeamIdRef.current = null;
       setDisplayedTeamId(null);
       setIsAnimating(false);
@@ -68,6 +68,15 @@ export function AdminBracketDrawModal({
       setIsAnimating(false);
       setShowResult(true);
       setShowConfirmButton(true);
+      return;
+    }
+
+    if (drawingTeamIds.length === 0) {
+      animatedDrawnTeamIdRef.current = null;
+      setDisplayedTeamId(null);
+      setIsAnimating(false);
+      setShowResult(false);
+      setShowConfirmButton(false);
       return;
     }
 
@@ -114,7 +123,7 @@ export function AdminBracketDrawModal({
         style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
         className="max-w-[640px] p-0 sm:max-w-[720px]"
       >
-        <div className="relative flex min-h-[420px] flex-col items-center justify-center overflow-hidden rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] p-10 text-center shadow-2xl border border-gray-200 dark:border-white/5">
+        <div className="relative flex min-h-[420px] flex-col items-center justify-center overflow-hidden rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] p-6 text-center shadow-2xl border border-gray-200 dark:border-white/5 sm:p-10">
           {/* Background Decorative Elements */}
           <div className="absolute inset-0 z-0">
             <div className="absolute -left-1/4 -top-1/4 h-1/2 w-1/2 rounded-full bg-primary/10 blur-[120px] animate-pulse" />
@@ -142,7 +151,7 @@ export function AdminBracketDrawModal({
             <div className="min-h-[160px] flex items-center justify-center w-full">
               <h2
                 className={cn(
-                  "text-5xl font-black leading-tight tracking-tighter sm:text-7xl lg:text-8xl transition-all duration-150",
+                  "w-full max-w-full break-words px-2 text-[clamp(2rem,9vw,5.5rem)] font-black leading-tight tracking-tighter [overflow-wrap:anywhere] transition-all duration-150",
                   isAnimating
                     ? "scale-95 blur-[4px] opacity-40 text-gray-400 dark:text-white"
                     : "scale-100 blur-0 opacity-100 bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-white dark:to-slate-400 bg-clip-text text-transparent animate-in zoom-in-95 duration-500"

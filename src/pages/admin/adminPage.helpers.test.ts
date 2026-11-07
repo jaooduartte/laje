@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { resolvePreferredAdminChampionshipCode } from "@/pages/admin/adminPage.helpers";
+import {
+  resolvePreferredAdminChampionshipCode,
+  resolveVisibleOperationalChampionshipBracketView,
+} from "@/pages/admin/adminPage.helpers";
 import { ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
-import type { Championship } from "@/lib/types";
+import { EMPTY_CHAMPIONSHIP_BRACKET_VIEW } from "@/lib/championship";
+import type { Championship, ChampionshipBracketView } from "@/lib/types";
 
 function buildChampionship(overrides: Partial<Championship> & Pick<Championship, "code">): Championship {
   return {
@@ -35,5 +39,25 @@ describe("resolvePreferredAdminChampionshipCode", () => {
     ];
 
     expect(resolvePreferredAdminChampionshipCode(championships)).toBe(ChampionshipCode.CLV);
+  });
+});
+
+describe("resolveVisibleOperationalChampionshipBracketView", () => {
+  it("mantém a edição ativa quando não há jogos na programação do dia", () => {
+    const bracketView = {
+      edition: {
+        id: "edition-2027",
+        payload_snapshot: { enabled_sport_ids: ["selected-sport"] },
+      },
+      competitions: [],
+    } as unknown as ChampionshipBracketView;
+
+    expect(resolveVisibleOperationalChampionshipBracketView(bracketView, 0)).toBe(bracketView);
+  });
+
+  it("usa a visão vazia quando não existem jogos nem edição carregada", () => {
+    expect(
+      resolveVisibleOperationalChampionshipBracketView(EMPTY_CHAMPIONSHIP_BRACKET_VIEW, 0),
+    ).toBe(EMPTY_CHAMPIONSHIP_BRACKET_VIEW);
   });
 });

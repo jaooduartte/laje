@@ -13,6 +13,7 @@ import {
   advanceSportsCoreChampionshipSeason,
   listSportsCoreMatches,
   resetSportsCoreChampionshipSeason,
+  resetSportsCoreChampionshipSeasonToPlanning,
   updateSportsCoreChampionship,
   updateSportsCoreScoreboard,
   updateSportsCoreSeason,
@@ -157,9 +158,10 @@ describe("laje-api sports core integration", () => {
       .mockResolvedValueOnce(jsonResponse({ data: apiChampionship }))
       .mockResolvedValueOnce(jsonResponse({ data: apiChampionship }))
       .mockResolvedValueOnce(jsonResponse({ data: apiSeason }))
+      .mockResolvedValueOnce({ ok: true, status: 204, json: async () => null } as Response)
       .mockResolvedValueOnce({ ok: true, status: 204, json: async () => null } as Response);
 
-    await updateSportsCoreChampionship(apiChampionship.id, { status: "PLANNING" }, "access-token");
+    await updateSportsCoreChampionship(apiChampionship.id, { status: "REVIEW" }, "access-token");
     await advanceSportsCoreChampionshipSeason(apiChampionship.id, "access-token");
     await updateSportsCoreSeason(
       apiChampionship.id,
@@ -175,11 +177,13 @@ describe("laje-api sports core integration", () => {
       "access-token",
     );
     await resetSportsCoreChampionshipSeason(apiChampionship.id, 2026, "access-token");
+    await resetSportsCoreChampionshipSeasonToPlanning(apiChampionship.id, 2026, "access-token");
 
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(String(fetchMock.mock.calls[0]?.[0])).toContain(`/championships/${apiChampionship.id}`);
     expect(String(fetchMock.mock.calls[1]?.[0])).toContain("/seasons/advance");
     expect(String(fetchMock.mock.calls[2]?.[0])).toContain("/seasons/2026");
     expect(String(fetchMock.mock.calls[3]?.[0])).toContain("/seasons/2026/reset");
+    expect(String(fetchMock.mock.calls[4]?.[0])).toContain("/seasons/2026/reset-to-planning");
   });
 });

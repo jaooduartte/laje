@@ -467,11 +467,17 @@ export async function createChampionshipBracketFromPreviewJob(
   championship_id: string,
   payload: ChampionshipBracketSetupFormValues,
   job_id: string,
+  showEstimatedStartTimeOnCardsBySportId: Record<string, boolean> = {},
 ): Promise<{ data: string | null; error: Error | null }> {
   if (isAwsBackendEnabled()) {
     try {
       return {
-        data: await createAwsBracketFromPreviewJob(championship_id, job_id, payload),
+        data: await createAwsBracketFromPreviewJob(
+          championship_id,
+          job_id,
+          payload,
+          showEstimatedStartTimeOnCardsBySportId,
+        ),
         error: null,
       };
     } catch (error) {
@@ -787,6 +793,13 @@ export async function generateChampionshipKnockout(
   championship_id: string,
   bracket_edition_id?: string,
 ) {
+  if (isAwsBackendEnabled()) {
+    return invokeAwsBracketOperation<string>("knockout-generate-edition", {
+      championshipId: championship_id,
+      editionId: bracket_edition_id ?? null,
+    });
+  }
+
   return supabase.rpc("generate_championship_knockout", {
     _championship_id: championship_id,
     _bracket_edition_id: bracket_edition_id ?? null,

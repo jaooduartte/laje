@@ -244,6 +244,28 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
     expect(dto?.bindToSave().current_step_index).toBe(11);
   });
 
+  it("restaura snapshots antigos armazenados como string JSONB", () => {
+    const storedDraft = {
+      ...buildDraft({ current_step_index: 6, selected_team_ids: ["team-1"] }),
+      step_flow_version: 2,
+    };
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify(JSON.stringify(storedDraft)),
+    );
+
+    expect(dto?.bindToSave().current_step_index).toBe(6);
+    expect(dto?.bindToSave().selected_team_ids).toEqual(["team-1"]);
+  });
+
+  it("rejeita snapshots que não sejam objetos JSON", () => {
+    expect(
+      ChampionshipBracketWizardDraftDTO.fromStorageValue(JSON.stringify("invalid draft")),
+    ).toBeNull();
+    expect(
+      ChampionshipBracketWizardDraftDTO.fromStorageValue(JSON.stringify(["invalid draft"])),
+    ).toBeNull();
+  });
+
   it("normaliza modo de numeração ausente em draft legado para COURT", () => {
     const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
       JSON.stringify({
@@ -785,6 +807,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
           expires_at: "2026-08-20T03:15:00.000Z",
           is_valid_for_creation: true,
           generated_at: "2026-08-10T03:15:00.000Z",
+          preview_match_count: 12,
           result: {
             ok: true,
             message: "Prévia pronta",
@@ -825,6 +848,7 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       expires_at: "2026-08-20T03:15:00.000Z",
       is_valid_for_creation: true,
       generated_at: "2026-08-10T03:15:00.000Z",
+      preview_match_count: 12,
       result: null,
     });
   });
@@ -970,6 +994,50 @@ describe("ChampionshipBracketWizardDraftDTO", () => {
       {
         sport_id: "sport-2",
         planned_match_count: 4,
+        planning_mode: "MANUAL",
+      },
+    ]);
+  });
+
+  it("preserva metas zeradas quando o modo foi escolhido explicitamente", () => {
+    const dto = ChampionshipBracketWizardDraftDTO.fromStorageValue(
+      JSON.stringify({
+        ...buildDraft(),
+        step_flow_version: 2,
+        schedule_days: buildStoredScheduleDays({
+          sportIds: ["sport-1", "sport-2"],
+          sportMatchTargets: [
+            {
+              sport_id: "sport-1",
+              planned_match_count: 0,
+              planning_mode: "AUTO",
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 0,
+              planning_mode: "MANUAL",
+            },
+            {
+              sport_id: "sport-2",
+              planned_match_count: 0,
+            },
+          ],
+        }),
+      }),
+    );
+
+    const savedCourt =
+      dto?.bindToSave().schedule_days[0]?.locations[0]?.courts[0];
+
+    expect(savedCourt?.sport_match_targets).toEqual([
+      {
+        sport_id: "sport-1",
+        planned_match_count: 0,
+        planning_mode: "AUTO",
+      },
+      {
+        sport_id: "sport-2",
+        planned_match_count: 0,
         planning_mode: "MANUAL",
       },
     ]);

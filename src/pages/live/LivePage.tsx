@@ -8,6 +8,7 @@ import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividu
 import { useLiveChampionshipRealtime } from "@/hooks/useLiveChampionshipRealtime";
 import {
   EMPTY_CHAMPIONSHIP_BRACKET_VIEW,
+  resolveChampionshipBracketEditionSportSelection,
   resolveKnockoutRoundLabel,
   resolveMatchBracketContextByMatchId,
 } from "@/lib/championship";
@@ -89,8 +90,17 @@ export function LivePage() {
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
   });
+  const {
+    championshipBracketView,
+    loading: championshipBracketLoading,
+    refetch: refetchChampionshipBracket,
+  } = useChampionshipBracket({
+    championshipId: selectedChampionshipId,
+    seasonYear: selectedChampionshipSeasonYear,
+    realtimeEnabled: false,
+  });
   const visibleSports = useMemo(() => {
-    if (removedSportRemovalsLoading) {
+    if (removedSportRemovalsLoading || championshipBracketLoading) {
       return [];
     }
 
@@ -103,9 +113,19 @@ export function LivePage() {
         )
         .map((championshipSport) => championshipSport.sport_id),
     );
+    const editionSportSelection = championshipBracketView.edition
+      ? resolveChampionshipBracketEditionSportSelection(championshipBracketView)
+      : null;
+    const hasConfiguredEditionSports = editionSportSelection?.hasConfiguredSelection ?? false;
 
-    return sports.filter((sport) => activeSportIds.has(sport.id));
+    return sports.filter(
+      (sport) =>
+        activeSportIds.has(sport.id) &&
+        (!hasConfiguredEditionSports || editionSportSelection?.sportIds.has(sport.id)),
+    );
   }, [
+    championshipBracketLoading,
+    championshipBracketView,
     championshipSports,
     removedSportIds,
     removedSportRemovalsLoading,
@@ -177,28 +197,16 @@ export function LivePage() {
     includeRealtime: false,
   });
 
-  const {
-    championshipBracketView,
-    loading: championshipBracketLoading,
-    refetch: refetchChampionshipBracket,
-  } = useChampionshipBracket({
-    championshipId: selectedChampionshipId,
-    seasonYear: selectedChampionshipSeasonYear,
-    realtimeEnabled: false,
-  });
-
   useLiveChampionshipRealtime({
     championshipId: selectedChampionshipId,
     seasonYear: selectedChampionshipSeasonYear,
-    onLiveMatchesChange: () => {
-      void refetchLiveMatches({ refreshOperationalContext: false });
-    },
-    onUpcomingMatchesChange: () => {
-      void refetchUpcomingMatches({ refreshOperationalContext: false });
-    },
-    onBracketChange: () => {
-      void refetchChampionshipBracket();
-    },
+    sportId: sportFilter,
+    liveMatches: filteredLiveMatches,
+    onLiveMatchesChange: () =>
+      refetchLiveMatches({ refreshOperationalContext: false }),
+    onUpcomingMatchesChange: () =>
+      refetchUpcomingMatches({ refreshOperationalContext: false }),
+    onBracketChange: () => refetchChampionshipBracket(),
   });
   const visibleChampionshipBracketView = useMemo(() => {
     if (championshipBracketView.competitions.length == 0) {

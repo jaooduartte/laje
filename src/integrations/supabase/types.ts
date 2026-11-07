@@ -2928,6 +2928,10 @@ export type Database = {
         Args: { _championship_id: string }
         Returns: Json
       }
+      reset_championship_season_to_planning: {
+        Args: { _championship_id: string; _season_year: number }
+        Returns: Json
+      }
       apply_society_2026_official_schedule: {
         Args: { _bracket_edition_id: string }
         Returns: undefined

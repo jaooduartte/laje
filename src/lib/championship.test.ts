@@ -14,6 +14,7 @@ import {
   resolveMatchStartedAtLabel,
   resolveChampionshipStandingsGroups,
   resolveChampionshipStandingsParticipants,
+  resolveChampionshipBracketEditionSportSelection,
   resolveVisualQueuePositionByMatchId,
   type MatchEstimatedStartTimeBracketEdition,
   type MatchEstimatedStartTimeChampionshipSport,
@@ -61,6 +62,58 @@ function buildMatch(overrides: Partial<Match> & Pick<Match, "id">): Match {
     match_sets: overrides.match_sets ?? [],
   };
 }
+
+describe("resolveChampionshipBracketEditionSportSelection", () => {
+  it("prioriza as modalidades explicitamente habilitadas na edição", () => {
+    const bracketView = {
+      edition: {
+        payload_snapshot: { enabled_sport_ids: ["sport-2", "sport-3"] },
+      },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-2", "sport-3"]),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("trata uma seleção explicitamente vazia como autoritativa", () => {
+    const bracketView = {
+      edition: { payload_snapshot: { enabled_sport_ids: [] } },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("lê snapshot serializado e ignora valores inválidos", () => {
+    const bracketView = {
+      edition: { payload_snapshot: JSON.stringify({ enabled_sport_ids: ["sport-1", 4, ""] }) },
+      competitions: [],
+    } as unknown as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-1"]),
+      hasConfiguredSelection: true,
+    });
+  });
+
+  it("recupera as modalidades das competições para edições antigas sem snapshot", () => {
+    const bracketView = {
+      edition: { payload_snapshot: {} },
+      competitions: [{ sport_id: "sport-1" }],
+    } as ChampionshipBracketView;
+
+    expect(resolveChampionshipBracketEditionSportSelection(bracketView)).toEqual({
+      sportIds: new Set(["sport-1"]),
+      hasConfiguredSelection: true,
+    });
+  });
+});
 
 function buildEstimatedStartTimeChampionshipSport(
   overrides: Partial<MatchEstimatedStartTimeChampionshipSport>,

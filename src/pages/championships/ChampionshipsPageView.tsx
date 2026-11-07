@@ -231,6 +231,11 @@ export function ChampionshipsPageView({
   onGroupFilterChange,
   onActiveContentTabChange,
 }: ChampionshipsPageViewProps) {
+  const currentSeasonChampionHistory = selectedChampionship
+    ? championshipChampionHistory.filter(
+        (yearGroup) => Number(yearGroup.year) == selectedChampionship.current_season_year,
+      )
+    : [];
   const [interlajeStandingsView, setInterlajeStandingsView] = useState<
     "groups" | "overall"
   >("groups");
@@ -1103,13 +1108,13 @@ export function ChampionshipsPageView({
                   Campeões por modalidade
                 </h2>
 
-                {championshipChampionHistory.length == 0 ? (
+                {currentSeasonChampionHistory.length == 0 ? (
                   <p className="text-center text-sm text-muted-foreground">
                     Nenhum campeão identificado para este campeonato.
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {championshipChampionHistory.map(
+                    {currentSeasonChampionHistory.map(
                       (championshipChampionYearGroup, index) => (
                         <div
                           key={championshipChampionYearGroup.year}
