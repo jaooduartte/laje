@@ -1,5 +1,5 @@
 import { useAwsRealtimePolling } from "@/hooks/useAwsRealtimePolling";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { isSupabaseBackendEnabled } from "@/config/environment";
 import {
   isDedicatedSportsCoreEnabled,
@@ -20,7 +20,10 @@ interface UseLiveChampionshipRealtimeOptions {
   seasonYear?: number | null;
   sportId?: string | null;
   liveMatches?: Match[];
-  onLiveMatchesChange: () => void | Promise<void>;
+  onLiveMatchesChange: (
+    result?: { matches: Match[]; total: number },
+    refreshOperationalContext?: boolean,
+  ) => void | Promise<void>;
   onUpcomingMatchesChange: () => void | Promise<void>;
   onBracketChange: () => void | Promise<void>;
 }
@@ -53,7 +56,6 @@ function resolveLiveMatchSnapshot(
         match.status,
         match.division,
         match.naipe,
-        match.result_rule,
         match.supports_cards,
         match.sports?.name,
         match.home_team_id,
@@ -123,11 +125,9 @@ export function useLiveChampionshipRealtime({
     onBracketChange,
   };
 
-  const currentSnapshot = resolveLiveMatchSnapshot(
-    liveMatches,
-    championshipId,
-    seasonYear,
-    sportId,
+  const currentSnapshot = useMemo(
+    () => resolveLiveMatchSnapshot(liveMatches, championshipId, seasonYear, sportId),
+    [liveMatches, championshipId, seasonYear, sportId],
   );
   const { scopeKey, statusKey, contentKey } = currentSnapshot;
   const lastLiveMatchSnapshotRef = useRef(currentSnapshot);
@@ -163,6 +163,9 @@ export function useLiveChampionshipRealtime({
           : {}),
         ...(currentCallbacks.sportId ? { sportId: currentCallbacks.sportId } : {}),
         statuses: [MatchStatus.LIVE],
+        includePendingManualRelocation: false,
+        sort: "scheduledDate",
+        order: "desc",
       });
       const nextSnapshot = resolveLiveMatchSnapshot(
         liveMatchesResult.matches,
@@ -181,7 +184,7 @@ export function useLiveChampionshipRealtime({
 
       if (previousSnapshot.statusKey != nextSnapshot.statusKey) {
         await Promise.all([
-          currentCallbacks.onLiveMatchesChange(),
+          currentCallbacks.onLiveMatchesChange(liveMatchesResult, true),
           currentCallbacks.onUpcomingMatchesChange(),
           currentCallbacks.onBracketChange(),
         ]);
@@ -189,7 +192,7 @@ export function useLiveChampionshipRealtime({
       }
 
       if (previousSnapshot.contentKey != nextSnapshot.contentKey) {
-        await currentCallbacks.onLiveMatchesChange();
+        await currentCallbacks.onLiveMatchesChange(liveMatchesResult, false);
       }
     },
   });

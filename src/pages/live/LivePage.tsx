@@ -201,7 +201,11 @@ export function LivePage() {
     seasonYear: selectedChampionshipSeasonYear,
     sportId: sportFilter,
     liveMatches: filteredLiveMatches,
-    onLiveMatchesChange: () => refetchLiveMatches({ refreshOperationalContext: false }),
+    onLiveMatchesChange: (result, refreshOperationalContext) =>
+      refetchLiveMatches({
+        refreshOperationalContext: refreshOperationalContext ?? false,
+        ...(result !== undefined ? { prefetchedMatchResult: result } : {}),
+      }),
     onUpcomingMatchesChange: () => refetchUpcomingMatches({ refreshOperationalContext: false }),
     onBracketChange: () => refetchChampionshipBracket(),
   });

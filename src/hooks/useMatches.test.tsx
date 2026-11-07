@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMatches } from "@/hooks/useMatches";
-import { MatchStatus } from "@/lib/enums";
+import { ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import type { Match } from "@/lib/types";
 
 const { getAwsMatchRuntimeContextMock, listSportsCoreMatchesMock } = vi.hoisted(() => ({
@@ -108,5 +108,59 @@ describe("useMatches", () => {
 
     expect(getAwsMatchRuntimeContextMock).toHaveBeenCalledTimes(1);
     expect(listSportsCoreMatchesMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("preserva a regra de resultado e usa partidas pré-carregadas sem nova consulta", async () => {
+    const matchWithoutResultRule = {
+      id: "match-1",
+      championship_id: "championship-1",
+      season_year: 2027,
+      sport_id: "sport-1",
+      status: MatchStatus.LIVE,
+      home_score: 0,
+      away_score: 0,
+      result_rule: null,
+      match_sets: [],
+    } as Match;
+    listSportsCoreMatchesMock.mockResolvedValue({ matches: [matchWithoutResultRule], total: 1 });
+    getAwsMatchRuntimeContextMock.mockResolvedValue({
+      championshipSports: [
+        {
+          championship_id: "championship-1",
+          sport_id: "sport-1",
+          result_rule: ChampionshipSportResultRule.SETS,
+        },
+      ],
+      bracketEdition: null,
+    });
+
+    const { result } = renderHook(() =>
+      useMatches({
+        championshipId: "championship-1",
+        seasonYear: 2027,
+        statuses: [MatchStatus.LIVE],
+        sortMode: "LIVE",
+        includeRealtime: false,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.matches[0]?.result_rule).toBe(ChampionshipSportResultRule.SETS);
+    });
+
+    await act(async () => {
+      await result.current.refetch({
+        refreshOperationalContext: false,
+        prefetchedMatchResult: {
+          matches: [{ ...matchWithoutResultRule, home_score: 1 }],
+          total: 1,
+        },
+      });
+    });
+
+    expect(result.current.matches[0]?.home_score).toBe(1);
+    expect(result.current.matches[0]?.result_rule).toBe(ChampionshipSportResultRule.SETS);
+    expect(getAwsMatchRuntimeContextMock).toHaveBeenCalledTimes(1);
+    expect(listSportsCoreMatchesMock).toHaveBeenCalledTimes(2);
   });
 });

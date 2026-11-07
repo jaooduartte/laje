@@ -1,7 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveChampionshipRealtime } from "@/hooks/useLiveChampionshipRealtime";
-import { MatchStatus } from "@/lib/enums";
+import { ChampionshipSportResultRule, MatchStatus } from "@/lib/enums";
 import type { Match } from "@/lib/types";
 
 const {
@@ -252,6 +252,11 @@ describe("useLiveChampionshipRealtime", () => {
     });
 
     expect(onLiveMatchesChange).toHaveBeenCalledTimes(1);
+    expect(onLiveMatchesChange).toHaveBeenNthCalledWith(
+      1,
+      { matches: [liveMatch], total: 1 },
+      true,
+    );
     expect(onUpcomingMatchesChange).toHaveBeenCalledTimes(1);
     expect(onBracketChange).toHaveBeenCalledTimes(1);
 
@@ -260,6 +265,11 @@ describe("useLiveChampionshipRealtime", () => {
     });
 
     expect(onLiveMatchesChange).toHaveBeenCalledTimes(2);
+    expect(onLiveMatchesChange).toHaveBeenNthCalledWith(
+      2,
+      { matches: [updatedLiveMatch], total: 1 },
+      false,
+    );
     expect(onUpcomingMatchesChange).toHaveBeenCalledTimes(1);
     expect(onBracketChange).toHaveBeenCalledTimes(1);
     expect(listSportsCoreMatchesMock).toHaveBeenCalledWith({
@@ -267,6 +277,48 @@ describe("useLiveChampionshipRealtime", () => {
       seasonYear: 2027,
       sportId: "sport-1",
       statuses: [MatchStatus.LIVE],
+      includePendingManualRelocation: false,
+      sort: "scheduledDate",
+      order: "desc",
     });
+  });
+
+  it("ignora diferenças de result_rule fornecido pelo contexto operacional", async () => {
+    const onLiveMatchesChange = vi.fn();
+    const onUpcomingMatchesChange = vi.fn();
+    const onBracketChange = vi.fn();
+    const liveMatch = {
+      id: "match-1",
+      status: MatchStatus.LIVE,
+      home_score: 0,
+      away_score: 0,
+      result_rule: ChampionshipSportResultRule.SETS,
+    } as Match;
+
+    listSportsCoreMatchesMock.mockResolvedValue({
+      matches: [{ ...liveMatch, result_rule: null }],
+      total: 1,
+    });
+
+    renderHook(() =>
+      useLiveChampionshipRealtime({
+        championshipId: "championship-1",
+        seasonYear: 2027,
+        liveMatches: [liveMatch],
+        onLiveMatchesChange,
+        onUpcomingMatchesChange,
+        onBracketChange,
+      }),
+    );
+
+    await act(async () => {
+      await awsPollingRegistrations
+        .find((registration) => registration.intervalMs == 30_000)
+        ?.onRefresh();
+    });
+
+    expect(onLiveMatchesChange).not.toHaveBeenCalled();
+    expect(onUpcomingMatchesChange).not.toHaveBeenCalled();
+    expect(onBracketChange).not.toHaveBeenCalled();
   });
 });
