@@ -6,7 +6,8 @@ export const buttonVariants = cva(
     variants: {
       variant: {
         default: "app-button-primary",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-[hsl(0_62%_36%)] dark:hover:bg-[hsl(0_62%_32%)]",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 dark:bg-[hsl(0_62%_36%)] dark:hover:bg-[hsl(0_62%_32%)]",
         outline: "app-button-secondary",
         secondary: "app-button-secondary",
         ghost: "shadow-none hover:shadow-none hover:text-accent-foreground",

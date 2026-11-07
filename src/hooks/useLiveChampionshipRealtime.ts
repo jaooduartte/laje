@@ -46,9 +46,7 @@ function resolveLiveMatchSnapshot(
 
   return {
     scopeKey: `${championshipId ?? "all"}:${seasonYear ?? "current"}:${sportId ?? "all"}`,
-    statusKey: JSON.stringify(
-      orderedMatches.map((match) => [match.id, match.status]),
-    ),
+    statusKey: JSON.stringify(orderedMatches.map((match) => [match.id, match.status])),
     contentKey: JSON.stringify(
       orderedMatches.map((match) => [
         match.id,

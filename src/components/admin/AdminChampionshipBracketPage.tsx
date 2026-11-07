@@ -702,10 +702,7 @@ function resolveScheduleDayClone(
   };
 }
 
-function setStateIfChanged<T>(
-  setState: Dispatch<SetStateAction<T>>,
-  nextValue: T,
-): void {
+function setStateIfChanged<T>(setState: Dispatch<SetStateAction<T>>, nextValue: T): void {
   setState((currentValue) =>
     JSON.stringify(currentValue) == JSON.stringify(nextValue) ? currentValue : nextValue,
   );
@@ -2217,9 +2214,7 @@ export function AdminChampionshipBracketPage({
           resolveIsIndividualSportName(championshipSport.sports?.name ?? ""),
       );
       const resolvedCurrentStepIndex =
-        nextCurrentStepIndex == 7 && !hasEnabledIndividualSportsInDraft
-          ? 8
-          : nextCurrentStepIndex;
+        nextCurrentStepIndex == 7 && !hasEnabledIndividualSportsInDraft ? 8 : nextCurrentStepIndex;
       const resolvedScheduleDays =
         sanitizedDraftFormValues.schedule_days.length > 0
           ? sanitizedDraftFormValues.schedule_days.map((schedule_day) =>
@@ -2291,10 +2286,7 @@ export function AdminChampionshipBracketPage({
         setTeamCompetitionDateAvailability,
         appliedDraftFormValues.team_competition_date_availability ?? [],
       );
-      setStateIfChanged(
-        setIndividualEventConfigs,
-        appliedDraftFormValues.individual_event_configs,
-      );
+      setStateIfChanged(setIndividualEventConfigs, appliedDraftFormValues.individual_event_configs);
       setStateIfChanged(
         setIndividualSessionConfigs,
         appliedDraftFormValues.individual_session_configs,
@@ -5713,8 +5705,7 @@ export function AdminChampionshipBracketPage({
 
               if (
                 (target.planning_mode ?? "MANUAL") == "MANUAL" &&
-                (!Number.isInteger(target.planned_match_count) ||
-                  target.planned_match_count <= 0)
+                (!Number.isInteger(target.planned_match_count) || target.planned_match_count <= 0)
               ) {
                 toast.error(
                   `A quantidade planejada de jogos de ${courtDisplayLabel} precisa ser um número inteiro maior que zero.`,
@@ -6446,8 +6437,7 @@ export function AdminChampionshipBracketPage({
                   sportMatchTargetRecommendationByKey.get(
                     [scheduleDay.id, location.id, court.id, sportId].join("::"),
                   ) ?? null;
-                const planningMode =
-                  target == null ? "AUTO" : (target.planning_mode ?? "MANUAL");
+                const planningMode = target == null ? "AUTO" : (target.planning_mode ?? "MANUAL");
 
                 if (target == null && recommendationLine == null) {
                   return null;
@@ -8241,9 +8231,7 @@ export function AdminChampionshipBracketPage({
                       ),
                     ) ?? null;
                   const planningMode =
-                    currentTarget == null
-                      ? "AUTO"
-                      : (currentTarget.planning_mode ?? "MANUAL");
+                    currentTarget == null ? "AUTO" : (currentTarget.planning_mode ?? "MANUAL");
                   const plannedMatchCount = Math.max(
                     0,
                     planningMode == "AUTO"
@@ -8269,9 +8257,8 @@ export function AdminChampionshipBracketPage({
                     ),
                   ) ?? null;
                 const effectiveMatchCount =
-                  (currentTarget == null
-                    ? "AUTO"
-                    : (currentTarget.planning_mode ?? "MANUAL")) == "AUTO"
+                  (currentTarget == null ? "AUTO" : (currentTarget.planning_mode ?? "MANUAL")) ==
+                  "AUTO"
                     ? (recommendationLine?.recommended_match_count ?? 0)
                     : (currentTarget?.planned_match_count ?? 0);
 
@@ -12859,10 +12846,7 @@ export function AdminChampionshipBracketPage({
                                             ? (recommendationLine?.recommended_match_count ?? 0)
                                             : (currentTarget?.planned_match_count ?? 0);
 
-                                        return (
-                                          (planningMode == "AUTO" ||
-                                            effectiveMatchCount > 0)
-                                        );
+                                        return planningMode == "AUTO" || effectiveMatchCount > 0;
                                       });
 
                                     const implicitPreferredSportId =
@@ -14249,7 +14233,8 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                     tone={AppBadgeTone.SILVER}
                                                                     className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                   >
-                                                                    Jogo {estimatedEntry.match_number}
+                                                                    Jogo{" "}
+                                                                    {estimatedEntry.match_number}
                                                                   </AppBadge>
                                                                   <AppBadge
                                                                     tone={AppBadgeTone.AMBER}
@@ -14481,11 +14466,14 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                 {planningItem.sport_name}
                                                               </p>
                                                               <p className="mt-1 text-xs text-muted-foreground">
-                                                                {planningItem.planned_match_count} jogo(s)
+                                                                {planningItem.planned_match_count}{" "}
+                                                                jogo(s)
                                                               </p>
                                                               <p className="text-xs text-muted-foreground">
-                                                                {planningItem.match_duration_minutes} min por
-                                                                jogo
+                                                                {
+                                                                  planningItem.match_duration_minutes
+                                                                }{" "}
+                                                                min por jogo
                                                               </p>
                                                             </div>
 
@@ -14944,7 +14932,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       <div className="flex flex-col items-center gap-2 text-center">
                                                                         <div className="flex w-full min-w-0 flex-col items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
                                                                           <AppBadge
-                                                                            tone={AppBadgeTone.SILVER}
+                                                                            tone={
+                                                                              AppBadgeTone.SILVER
+                                                                            }
                                                                             className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                           >
                                                                             Jogo{" "}
@@ -14952,7 +14942,9 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                               "—"}
                                                                           </AppBadge>
                                                                           <AppBadge
-                                                                            tone={AppBadgeTone.AMBER}
+                                                                            tone={
+                                                                              AppBadgeTone.AMBER
+                                                                            }
                                                                             className="max-w-full whitespace-normal break-words border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
                                                                           >
                                                                             Programação exata
@@ -15008,7 +15000,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                           ) : null}
 
                                                                           {entry.reason ? (
-                                                                              <p className="mt-1 w-full whitespace-normal break-words text-[10px] text-muted-foreground">
+                                                                            <p className="mt-1 w-full whitespace-normal break-words text-[10px] text-muted-foreground">
                                                                               {resolveOperationalPreviewMatchReason(
                                                                                 {
                                                                                   reason:

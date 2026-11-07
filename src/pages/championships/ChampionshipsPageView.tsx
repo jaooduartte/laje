@@ -4,19 +4,11 @@ import { Header } from "@/components/Header";
 import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
 import { CardListSkeleton } from "@/components/skeletons/CardListSkeleton";
 import { MatchCard } from "@/components/MatchCard";
-import {
-  TeamStandingsTable,
-  type TeamStandingsBadge,
-} from "@/components/TeamStandingsTable";
+import { TeamStandingsTable, type TeamStandingsBadge } from "@/components/TeamStandingsTable";
 import { IndividualSportStandingsTable } from "@/components/IndividualSportStandingsTable";
 import { YellowCardDisciplineTable } from "@/components/YellowCardDisciplineTable";
 import { Input } from "@/components/ui/input";
-import {
-  Tabs,
-  TabsContent,
-  TabsNavigationList,
-  TabsNavigationTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsNavigationList, TabsNavigationTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -25,15 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  formatStandingsPoints,
-  type TeamStandingAggregate,
-} from "@/lib/standings";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { formatStandingsPoints, type TeamStandingAggregate } from "@/lib/standings";
 import {
   formatInterlajeClassificationPolicy,
   type InterlajeCompetitionStanding,
@@ -49,10 +34,7 @@ import type {
   Standing,
   Team,
 } from "@/lib/types";
-import type {
-  BracketGroupFilterOption,
-  MatchBracketContext,
-} from "@/lib/championship";
+import type { BracketGroupFilterOption, MatchBracketContext } from "@/lib/championship";
 import type { ChampionshipChampionYearGroup } from "@/lib/championshipHistory";
 import {
   compareAwardsRankingGoalScorers,
@@ -112,10 +94,7 @@ interface ChampionshipsPageViewProps {
   isIndividualStandingsView?: boolean;
   individualStandingsRows?: Array<ChampionshipIndividualTeamStanding | Standing>;
   individualEvents?: ChampionshipIndividualEvent[];
-  individualEntriesByEventId?: Record<
-    string,
-    ChampionshipIndividualEventEntry[]
-  >;
+  individualEntriesByEventId?: Record<string, ChampionshipIndividualEventEntry[]>;
   disqualifiedTeamKeys?: ReadonlySet<string>;
   isStandingsNaipeFilterLocked: boolean;
   standingsModalidadeConfig?: ModalidadeConfig;
@@ -170,11 +149,7 @@ export function ChampionshipsPageView({
   isNextMatchesFetching,
   standingsSportFilter,
   standingsNaipeFilter,
-  availableStandingsNaipeOptions = [
-    MatchNaipe.MASCULINO,
-    MatchNaipe.FEMININO,
-    MatchNaipe.MISTO,
-  ],
+  availableStandingsNaipeOptions = [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO],
   standingsYearFilter,
   standingsDivisionFilter,
   allStandingsSportFilter,
@@ -236,25 +211,19 @@ export function ChampionshipsPageView({
         (yearGroup) => Number(yearGroup.year) == selectedChampionship.current_season_year,
       )
     : [];
-  const [interlajeStandingsView, setInterlajeStandingsView] = useState<
-    "groups" | "overall"
-  >("groups");
+  const [interlajeStandingsView, setInterlajeStandingsView] = useState<"groups" | "overall">(
+    "groups",
+  );
   const interlajeCompetitionStandingsByDivision = useMemo(() => {
     const standingsByDivision = new Map<string, InterlajeCompetitionStanding[]>();
 
     interlajeCompetitionStandings.forEach((standing) => {
       const key = standing.division ?? "WITHOUT_DIVISION";
-      standingsByDivision.set(key, [
-        ...(standingsByDivision.get(key) ?? []),
-        standing,
-      ]);
+      standingsByDivision.set(key, [...(standingsByDivision.get(key) ?? []), standing]);
     });
 
     return [...standingsByDivision.entries()].map(([division, standings]) => ({
-      label:
-        division == "WITHOUT_DIVISION"
-          ? null
-          : TEAM_DIVISION_LABELS[division as TeamDivision],
+      label: division == "WITHOUT_DIVISION" ? null : TEAM_DIVISION_LABELS[division as TeamDivision],
       standings,
     }));
   }, [interlajeCompetitionStandings]);
@@ -265,33 +234,20 @@ export function ChampionshipsPageView({
   const firstPlaceTeam = overallPodiumStandings[0] ?? null;
   const secondPlaceTeam = overallPodiumStandings[1] ?? null;
   const thirdPlaceTeam = overallPodiumStandings[2] ?? null;
-  const [isStandingsHelpTooltipHoverOpen, setIsStandingsHelpTooltipHoverOpen] =
-    useState(false);
-  const [isStandingsHelpTooltipClickOpen, setIsStandingsHelpTooltipClickOpen] =
-    useState(false);
-  const standingsHelpTooltipTimeoutReference = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const [isStandingsHelpTooltipHoverOpen, setIsStandingsHelpTooltipHoverOpen] = useState(false);
+  const [isStandingsHelpTooltipClickOpen, setIsStandingsHelpTooltipClickOpen] = useState(false);
+  const standingsHelpTooltipTimeoutReference = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isStandingsHelpTooltipOpen =
     isStandingsHelpTooltipHoverOpen || isStandingsHelpTooltipClickOpen;
   const isInterlajeOverallStandingsView =
     selectedChampionship?.code == ChampionshipCode.INTERLAJE &&
     standingsSportFilter == allStandingsSportFilter &&
     standingsNaipeFilter == allStandingsNaipeFilter &&
-    (!selectedChampionshipHasDivisions ||
-      standingsDivisionFilter == allStandingsDivisionFilter);
-  const [cardsSportFilter, setCardsSportFilter] = useState(
-    DISCIPLINE_ALL_FILTER,
-  );
-  const [cardsNaipeFilter, setCardsNaipeFilter] = useState(
-    DISCIPLINE_ALL_FILTER,
-  );
-  const [cardsDivisionFilter, setCardsDivisionFilter] = useState(
-    DISCIPLINE_ALL_FILTER,
-  );
-  const [cardsTeamFilter, setCardsTeamFilter] = useState(
-    DISCIPLINE_ALL_FILTER,
-  );
+    (!selectedChampionshipHasDivisions || standingsDivisionFilter == allStandingsDivisionFilter);
+  const [cardsSportFilter, setCardsSportFilter] = useState(DISCIPLINE_ALL_FILTER);
+  const [cardsNaipeFilter, setCardsNaipeFilter] = useState(DISCIPLINE_ALL_FILTER);
+  const [cardsDivisionFilter, setCardsDivisionFilter] = useState(DISCIPLINE_ALL_FILTER);
+  const [cardsTeamFilter, setCardsTeamFilter] = useState(DISCIPLINE_ALL_FILTER);
   const [cardsSort, setCardsSort] = useState(DISCIPLINE_ALPHABETICAL_SORT);
   const [cardsAthleteQuery, setCardsAthleteQuery] = useState("");
   const [cardsOnlySuspended, setCardsOnlySuspended] = useState(false);
@@ -319,14 +275,12 @@ export function ChampionshipsPageView({
   }, [yellowCardDiscipline?.athletes]);
   const availableCardNaipeOptions = useMemo(
     () =>
-      [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO].filter(
-        (naipe) =>
-          (yellowCardDiscipline?.athletes ?? []).some(
-            (athlete) =>
-              athlete.naipe == naipe &&
-              (cardsSportFilter == DISCIPLINE_ALL_FILTER ||
-                athlete.sport_id == cardsSportFilter),
-          ),
+      [MatchNaipe.MASCULINO, MatchNaipe.FEMININO, MatchNaipe.MISTO].filter((naipe) =>
+        (yellowCardDiscipline?.athletes ?? []).some(
+          (athlete) =>
+            athlete.naipe == naipe &&
+            (cardsSportFilter == DISCIPLINE_ALL_FILTER || athlete.sport_id == cardsSportFilter),
+        ),
       ),
     [cardsSportFilter, yellowCardDiscipline?.athletes],
   );
@@ -334,19 +288,11 @@ export function ChampionshipsPageView({
     () =>
       (yellowCardDiscipline?.athletes ?? []).filter(
         (athlete) =>
-          (cardsSportFilter == DISCIPLINE_ALL_FILTER ||
-            athlete.sport_id == cardsSportFilter) &&
-          (cardsNaipeFilter == DISCIPLINE_ALL_FILTER ||
-            athlete.naipe == cardsNaipeFilter) &&
-          (cardsDivisionFilter == DISCIPLINE_ALL_FILTER ||
-            athlete.division == cardsDivisionFilter),
+          (cardsSportFilter == DISCIPLINE_ALL_FILTER || athlete.sport_id == cardsSportFilter) &&
+          (cardsNaipeFilter == DISCIPLINE_ALL_FILTER || athlete.naipe == cardsNaipeFilter) &&
+          (cardsDivisionFilter == DISCIPLINE_ALL_FILTER || athlete.division == cardsDivisionFilter),
       ),
-    [
-      cardsDivisionFilter,
-      cardsNaipeFilter,
-      cardsSportFilter,
-      yellowCardDiscipline?.athletes,
-    ],
+    [cardsDivisionFilter, cardsNaipeFilter, cardsSportFilter, yellowCardDiscipline?.athletes],
   );
   const availableCardTeams = useMemo(() => {
     const teamsById = new Map<string, string>();
@@ -357,21 +303,16 @@ export function ChampionshipsPageView({
 
     return [...teamsById.entries()]
       .map(([id, name]) => ({ id, name }))
-      .sort((firstTeam, secondTeam) =>
-        firstTeam.name.localeCompare(secondTeam.name, "pt-BR"),
-      );
+      .sort((firstTeam, secondTeam) => firstTeam.name.localeCompare(secondTeam.name, "pt-BR"));
   }, [cardAthletesInSelectedContext]);
   const filteredYellowCardAthletes = useMemo(() => {
     const normalizedQuery = cardsAthleteQuery.trim().toLocaleLowerCase("pt-BR");
     const athletes = cardAthletesInSelectedContext.filter(
       (athlete) =>
-        (cardsTeamFilter == DISCIPLINE_ALL_FILTER ||
-          athlete.team_id == cardsTeamFilter) &&
+        (cardsTeamFilter == DISCIPLINE_ALL_FILTER || athlete.team_id == cardsTeamFilter) &&
         (!cardsOnlySuspended || athlete.is_suspended) &&
         (!normalizedQuery ||
-          athlete.player_name
-            .toLocaleLowerCase("pt-BR")
-            .includes(normalizedQuery)),
+          athlete.player_name.toLocaleLowerCase("pt-BR").includes(normalizedQuery)),
     );
 
     return athletes.sort((firstAthlete, secondAthlete) => {
@@ -386,31 +327,25 @@ export function ChampionshipsPageView({
         const difference =
           secondAthlete.yellow_cards_total +
           secondAthlete.red_cards_direct_total -
-          (firstAthlete.yellow_cards_total +
-            firstAthlete.red_cards_direct_total);
+          (firstAthlete.yellow_cards_total + firstAthlete.red_cards_direct_total);
 
         if (difference != 0) return difference;
       }
 
       if (cardsSort == DISCIPLINE_YELLOW_CARDS_SORT) {
-        const difference =
-          secondAthlete.yellow_cards_total - firstAthlete.yellow_cards_total;
+        const difference = secondAthlete.yellow_cards_total - firstAthlete.yellow_cards_total;
 
         if (difference != 0) return difference;
       }
 
       if (cardsSort == DISCIPLINE_DIRECT_RED_CARDS_SORT) {
         const difference =
-          secondAthlete.red_cards_direct_total -
-          firstAthlete.red_cards_direct_total;
+          secondAthlete.red_cards_direct_total - firstAthlete.red_cards_direct_total;
 
         if (difference != 0) return difference;
       }
 
-      return firstAthlete.player_name.localeCompare(
-        secondAthlete.player_name,
-        "pt-BR",
-      );
+      return firstAthlete.player_name.localeCompare(secondAthlete.player_name, "pt-BR");
     });
   }, [
     cardAthletesInSelectedContext,
@@ -439,10 +374,7 @@ export function ChampionshipsPageView({
   }, [availableCardNaipeOptions, cardsNaipeFilter]);
 
   useEffect(() => {
-    if (
-      !selectedChampionshipHasDivisions &&
-      cardsDivisionFilter != DISCIPLINE_ALL_FILTER
-    ) {
+    if (!selectedChampionshipHasDivisions && cardsDivisionFilter != DISCIPLINE_ALL_FILTER) {
       setCardsDivisionFilter(DISCIPLINE_ALL_FILTER);
     }
   }, [cardsDivisionFilter, selectedChampionshipHasDivisions]);
@@ -494,9 +426,7 @@ export function ChampionshipsPageView({
         <Header />
         <main className="container py-8">
           <div className="glass-panel p-5">
-            <p className="text-sm text-muted-foreground">
-              Nenhum campeonato disponível.
-            </p>
+            <p className="text-sm text-muted-foreground">Nenhum campeonato disponível.</p>
           </div>
         </main>
       </div>
@@ -508,9 +438,7 @@ export function ChampionshipsPageView({
       <Header />
       <main className="container py-8 space-y-6">
         <section className="glass-panel enter-section space-y-4 p-5">
-          <h1 className="text-center text-2xl font-display font-bold">
-            Campeonatos LAJE
-          </h1>
+          <h1 className="text-center text-2xl font-display font-bold">Campeonatos LAJE</h1>
           <div className="grid gap-3 md:grid-cols-3">
             {championships.map((championship) => {
               const isSelected = championship.code == selectedChampionshipCode;
@@ -552,17 +480,11 @@ export function ChampionshipsPageView({
           className="enter-section space-y-4"
         >
           <TabsNavigationList className="grid w-full grid-cols-3">
-            <TabsNavigationTrigger value="standings">
-              Classificação
-            </TabsNavigationTrigger>
+            <TabsNavigationTrigger value="standings">Classificação</TabsNavigationTrigger>
 
-            <TabsNavigationTrigger value="cards">
-              Cartões
-            </TabsNavigationTrigger>
+            <TabsNavigationTrigger value="cards">Cartões</TabsNavigationTrigger>
 
-            <TabsNavigationTrigger value="champions">
-              Campeões
-            </TabsNavigationTrigger>
+            <TabsNavigationTrigger value="champions">Campeões</TabsNavigationTrigger>
           </TabsNavigationList>
 
           {isChampionshipContentLoading ? (
@@ -581,18 +503,12 @@ export function ChampionshipsPageView({
                 />
               </TabsContent>
 
-              <TabsContent
-                value="champions"
-                className="glass-panel enter-section space-y-4 p-5"
-              >
+              <TabsContent value="champions" className="glass-panel enter-section space-y-4 p-5">
                 <h2 className="text-center text-xl font-display font-bold">
                   Campeões por modalidade
                 </h2>
 
-                <CardListSkeleton
-                  count={4}
-                  className="grid-cols-1 md:grid-cols-2"
-                />
+                <CardListSkeleton count={4} className="grid-cols-1 md:grid-cols-2" />
               </TabsContent>
             </>
           ) : (
@@ -600,9 +516,7 @@ export function ChampionshipsPageView({
               <TabsContent value="standings" className="space-y-6">
                 <section className="glass-panel enter-section space-y-4 p-5">
                   <div className="flex items-center justify-center gap-2">
-                    <h2 className="text-xl font-display font-bold">
-                      Classificação
-                    </h2>
+                    <h2 className="text-xl font-display font-bold">Classificação</h2>
                     <Tooltip
                       open={isStandingsHelpTooltipOpen}
                       onOpenChange={setIsStandingsHelpTooltipHoverOpen}
@@ -620,20 +534,18 @@ export function ChampionshipsPageView({
                       <TooltipContent side="top" className="max-w-xs text-xs leading-relaxed">
                         {isInterlajeOverallStandingsView ? (
                           <>
-                            Nesta classificação geral do INTERLAJE, o PTS não é
-                            a soma direta dos jogos. Ele soma os pontos de
-                            colocação de cada modalidade, naipe e divisão, o
-                            bônus de abertura e desconta as penalidades por
-                            W.O. Durante o mata-mata, esses pontos de colocação
-                            podem ser projetados pelo chaveamento até a final.
+                            Nesta classificação geral do INTERLAJE, o PTS não é a soma direta dos
+                            jogos. Ele soma os pontos de colocação de cada modalidade, naipe e
+                            divisão, o bônus de abertura e desconta as penalidades por W.O. Durante
+                            o mata-mata, esses pontos de colocação podem ser projetados pelo
+                            chaveamento até a final.
                           </>
                         ) : (
                           <>
-                            Algumas pontuações podem aparecer em formato
-                            decimal. Isso ocorre quando um multiplicador de
-                            1,5× é aplicado para equalização proporcional da
-                            classificação entre atléticas que jogaram em chaves
-                            de tamanhos diferentes.
+                            Algumas pontuações podem aparecer em formato decimal. Isso ocorre quando
+                            um multiplicador de 1,5× é aplicado para equalização proporcional da
+                            classificação entre atléticas que jogaram em chaves de tamanhos
+                            diferentes.
                           </>
                         )}
                       </TooltipContent>
@@ -643,17 +555,12 @@ export function ChampionshipsPageView({
                   <div
                     className={`grid grid-cols-1 gap-3 ${selectedChampionshipHasDivisions ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}
                   >
-                    <Select
-                      value={standingsYearFilter}
-                      onValueChange={onStandingsYearFilterChange}
-                    >
+                    <Select value={standingsYearFilter} onValueChange={onStandingsYearFilterChange}>
                       <SelectTrigger className="app-input-field w-full">
                         <SelectValue placeholder="Filtrar ano" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={allYearFilter}>
-                          Todos os anos
-                        </SelectItem>
+                        <SelectItem value={allYearFilter}>Todos os anos</SelectItem>
                         {availableStandingsYears.map((year) => (
                           <SelectItem key={year} value={year}>
                             {year}
@@ -687,18 +594,14 @@ export function ChampionshipsPageView({
                     >
                       <SelectTrigger
                         className={`app-input-field w-full ${
-                          isStandingsNaipeFilterLocked
-                            ? "cursor-not-allowed opacity-60"
-                            : ""
+                          isStandingsNaipeFilterLocked ? "cursor-not-allowed opacity-60" : ""
                         }`}
                         disabled={isStandingsNaipeFilterLocked}
                       >
                         <SelectValue placeholder="Filtrar naipe" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={allStandingsNaipeFilter}>
-                          Todos os naipes
-                        </SelectItem>
+                        <SelectItem value={allStandingsNaipeFilter}>Todos os naipes</SelectItem>
                         {availableStandingsNaipeOptions.map((naipe) => (
                           <SelectItem key={naipe} value={naipe}>
                             {MATCH_NAIPE_LABELS[naipe]}
@@ -720,11 +623,7 @@ export function ChampionshipsPageView({
                             Todas as divisões
                           </SelectItem>
                           <SelectItem value={TeamDivision.DIVISAO_PRINCIPAL}>
-                            {
-                              TEAM_DIVISION_LABELS[
-                                TeamDivision.DIVISAO_PRINCIPAL
-                              ]
-                            }
+                            {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_PRINCIPAL]}
                           </SelectItem>
                           <SelectItem value={TeamDivision.DIVISAO_ACESSO}>
                             {TEAM_DIVISION_LABELS[TeamDivision.DIVISAO_ACESSO]}
@@ -742,9 +641,7 @@ export function ChampionshipsPageView({
                       }
                     >
                       <TabsNavigationList className="mx-auto mb-4 !flex w-fit">
-                        <TabsNavigationTrigger value="groups">
-                          Por grupos
-                        </TabsNavigationTrigger>
+                        <TabsNavigationTrigger value="groups">Por grupos</TabsNavigationTrigger>
                         <TabsNavigationTrigger value="overall">
                           Geral da modalidade
                         </TabsNavigationTrigger>
@@ -765,7 +662,10 @@ export function ChampionshipsPageView({
                               ? standingsGroups
                               : [{ label: null, standings: filteredStandings }]
                             ).map((standingsGroup) => (
-                              <section key={standingsGroup.label ?? "overall"} className="space-y-2">
+                              <section
+                                key={standingsGroup.label ?? "overall"}
+                                className="space-y-2"
+                              >
                                 {standingsGroup.label ? (
                                   <h3 className="text-base font-display font-bold">
                                     {standingsGroup.label}
@@ -784,7 +684,16 @@ export function ChampionshipsPageView({
                         )}
                       </TabsContent>
                       <TabsContent value="overall" className="space-y-5">
-                        {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy) ? <p className="text-xs text-muted-foreground">Critérios oficiais: {formatInterlajeClassificationPolicy(interlajeCompetitionStandings[0]?.classification_policy)}</p> : null}
+                        {formatInterlajeClassificationPolicy(
+                          interlajeCompetitionStandings[0]?.classification_policy,
+                        ) ? (
+                          <p className="text-xs text-muted-foreground">
+                            Critérios oficiais:{" "}
+                            {formatInterlajeClassificationPolicy(
+                              interlajeCompetitionStandings[0]?.classification_policy,
+                            )}
+                          </p>
+                        ) : null}
                         <p className="text-xs text-muted-foreground">
                           {hasInterlajeCompetitionProjectedPlacement
                             ? "A tabela segue os resultados da modalidade. A colocação que pontua a classificação geral é projetada pelo chaveamento atual e pode mudar até a final."
@@ -817,8 +726,7 @@ export function ChampionshipsPageView({
                       isLoading={isStandingsLoading}
                       disqualifiedTeamKeys={disqualifiedTeamKeys}
                     />
-                  ) : isInterlajeOverallStandingsView &&
-                    interlajeOverallStandingsError ? (
+                  ) : isInterlajeOverallStandingsView && interlajeOverallStandingsError ? (
                     <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-center">
                       <p className="text-sm text-muted-foreground">
                         {interlajeOverallStandingsError}
@@ -835,7 +743,8 @@ export function ChampionshipsPageView({
                     <div className="space-y-5">
                       {hasInterlajeOverallProjectedPlacement ? (
                         <p className="text-xs text-center text-muted-foreground">
-                          Os pontos de colocação podem mudar conforme os próximos jogos do mata-mata.
+                          Os pontos de colocação podem mudar conforme os próximos jogos do
+                          mata-mata.
                         </p>
                       ) : null}
                       {(standingsGroups.length > 0
@@ -862,104 +771,86 @@ export function ChampionshipsPageView({
                       ))}
                     </div>
                   )}
-                {isIndividualStandingsView &&
-                individualEventsWithResults.length > 0 ? (
-                  <div className="space-y-3 border-t border-border/60 pt-5">
-                    <div>
-                      <h3 className="text-lg font-display font-bold">
-                        Resultados por prova
-                      </h3>
-                      <p className="text-xs text-muted-foreground">
-                        O app registra a ordem oficial final definida pela CO
-                        para Atletismo e Natação.
-                      </p>
-                    </div>
+                  {isIndividualStandingsView && individualEventsWithResults.length > 0 ? (
+                    <div className="space-y-3 border-t border-border/60 pt-5">
+                      <div>
+                        <h3 className="text-lg font-display font-bold">Resultados por prova</h3>
+                        <p className="text-xs text-muted-foreground">
+                          O app registra a ordem oficial final definida pela CO para Atletismo e
+                          Natação.
+                        </p>
+                      </div>
 
-                    <div className="space-y-2">
-                      {individualEventsWithResults.map((event) => (
-                        <details
-                          key={event.id}
-                          className="rounded-2xl border border-border/60 bg-background/40 p-4"
-                        >
-                          <summary className="cursor-pointer list-none">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                              <span className="font-medium">{event.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {event.naipe} •{" "}
-                                {event.scheduled_date ?? "Sem data"} •{" "}
-                                {event.location ?? "Local a definir"}
-                              </span>
-                            </div>
-                          </summary>
-                          <div className="mt-4 space-y-2">
-                            {(individualEntriesByEventId[event.id] ?? [])
-                              .filter(hasIndividualEventEntryResult)
-                              .map(
-                                (entry) => (
+                      <div className="space-y-2">
+                        {individualEventsWithResults.map((event) => (
+                          <details
+                            key={event.id}
+                            className="rounded-2xl border border-border/60 bg-background/40 p-4"
+                          >
+                            <summary className="cursor-pointer list-none">
+                              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <span className="font-medium">{event.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {event.naipe} • {event.scheduled_date ?? "Sem data"} •{" "}
+                                  {event.location ?? "Local a definir"}
+                                </span>
+                              </div>
+                            </summary>
+                            <div className="mt-4 space-y-2">
+                              {(individualEntriesByEventId[event.id] ?? [])
+                                .filter(hasIndividualEventEntryResult)
+                                .map((entry) => (
                                   <div
                                     key={entry.id}
                                     className="flex items-center justify-between gap-3 rounded-xl border border-border/40 px-3 py-2 text-sm"
                                   >
                                     <div>
-                                      <p className="font-medium">
-                                        {entry.teams?.name ?? "-"}
-                                      </p>
+                                      <p className="font-medium">{entry.teams?.name ?? "-"}</p>
                                       <p className="text-xs text-muted-foreground">
                                         {[
                                           entry.athlete_name ??
                                             entry.members
-                                              ?.filter(
-                                                (member) => member.is_starter,
-                                              )
-                                              .map(
-                                                (member) => member.athlete_name,
-                                              )
+                                              ?.filter((member) => member.is_starter)
+                                              .map((member) => member.athlete_name)
                                               .join(", "),
-                                          entry.lane_number
-                                            ? `Raia ${entry.lane_number}`
-                                            : null,
-                                        ].filter(Boolean).join(" • ") || "-"}
+                                          entry.lane_number ? `Raia ${entry.lane_number}` : null,
+                                        ]
+                                          .filter(Boolean)
+                                          .join(" • ") || "-"}
                                       </p>
                                     </div>
                                     <div className="text-right">
                                       <p className="font-semibold">
                                         {entry.final_position != null
                                           ? `${entry.final_position}º`
-                                          : INDIVIDUAL_ENTRY_STATUS_LABELS[
-                                              entry.status
-                                            ]}
+                                          : INDIVIDUAL_ENTRY_STATUS_LABELS[entry.status]}
                                       </p>
                                       <p className="text-xs text-muted-foreground">
                                         {entry.points_awarded} pts
                                       </p>
                                     </div>
                                   </div>
-                                ),
-                              )}
-                          </div>
-                        </details>
-                      ))}
+                                ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : null}
+                  ) : null}
                 </section>
               </TabsContent>
 
               <TabsContent value="cards" className="space-y-6">
                 <section className="glass-panel enter-section space-y-4 p-5">
                   <div>
-                    <h2 className="text-center text-xl font-display font-bold">
-                      Cartões
-                    </h2>
+                    <h2 className="text-center text-xl font-display font-bold">Cartões</h2>
                     <p className="mt-1 text-center text-sm text-muted-foreground">
                       Histórico individual de cartões e situação disciplinar.
                     </p>
                   </div>
                   <div
                     className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${
-                      selectedChampionshipHasDivisions
-                        ? "lg:grid-cols-6"
-                        : "lg:grid-cols-5"
+                      selectedChampionshipHasDivisions ? "lg:grid-cols-6" : "lg:grid-cols-5"
                     }`}
                   >
                     <Select
@@ -977,17 +868,12 @@ export function ChampionshipsPageView({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select
-                      value={cardsSportFilter}
-                      onValueChange={setCardsSportFilter}
-                    >
+                    <Select value={cardsSportFilter} onValueChange={setCardsSportFilter}>
                       <SelectTrigger className="app-input-field w-full">
                         <SelectValue placeholder="Filtrar modalidade" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
-                          Todas as modalidades
-                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>Todas as modalidades</SelectItem>
                         {availableCardSports.map((sport) => (
                           <SelectItem key={sport.id} value={sport.id}>
                             {sport.name}
@@ -995,17 +881,12 @@ export function ChampionshipsPageView({
                         ))}
                       </SelectContent>
                     </Select>
-                    <Select
-                      value={cardsNaipeFilter}
-                      onValueChange={setCardsNaipeFilter}
-                    >
+                    <Select value={cardsNaipeFilter} onValueChange={setCardsNaipeFilter}>
                       <SelectTrigger className="app-input-field w-full">
                         <SelectValue placeholder="Filtrar naipe" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
-                          Todos os naipes
-                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>Todos os naipes</SelectItem>
                         {availableCardNaipeOptions.map((naipe) => (
                           <SelectItem key={naipe} value={naipe}>
                             {MATCH_NAIPE_LABELS[naipe]}
@@ -1014,38 +895,26 @@ export function ChampionshipsPageView({
                       </SelectContent>
                     </Select>
                     {selectedChampionshipHasDivisions ? (
-                      <Select
-                        value={cardsDivisionFilter}
-                        onValueChange={setCardsDivisionFilter}
-                      >
+                      <Select value={cardsDivisionFilter} onValueChange={setCardsDivisionFilter}>
                         <SelectTrigger className="app-input-field w-full">
                           <SelectValue placeholder="Filtrar divisão" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={DISCIPLINE_ALL_FILTER}>
-                            Todas as divisões
-                          </SelectItem>
-                          {Object.entries(TEAM_DIVISION_LABELS).map(
-                            ([value, label]) => (
-                              <SelectItem key={value} value={value}>
-                                {label}
-                              </SelectItem>
-                            ),
-                          )}
+                          <SelectItem value={DISCIPLINE_ALL_FILTER}>Todas as divisões</SelectItem>
+                          {Object.entries(TEAM_DIVISION_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     ) : null}
-                    <Select
-                      value={cardsTeamFilter}
-                      onValueChange={setCardsTeamFilter}
-                    >
+                    <Select value={cardsTeamFilter} onValueChange={setCardsTeamFilter}>
                       <SelectTrigger className="app-input-field w-full">
                         <SelectValue placeholder="Filtrar atlética" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value={DISCIPLINE_ALL_FILTER}>
-                          Todas as atléticas
-                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_ALL_FILTER}>Todas as atléticas</SelectItem>
                         {availableCardTeams.map((team) => (
                           <SelectItem key={team.id} value={team.id}>
                             {team.name}
@@ -1061,12 +930,8 @@ export function ChampionshipsPageView({
                         <SelectItem value={DISCIPLINE_ALPHABETICAL_SORT}>
                           Ordem alfabética
                         </SelectItem>
-                        <SelectItem value={DISCIPLINE_TOTAL_CARDS_SORT}>
-                          Mais cartões
-                        </SelectItem>
-                        <SelectItem value={DISCIPLINE_YELLOW_CARDS_SORT}>
-                          Mais amarelos
-                        </SelectItem>
+                        <SelectItem value={DISCIPLINE_TOTAL_CARDS_SORT}>Mais cartões</SelectItem>
+                        <SelectItem value={DISCIPLINE_YELLOW_CARDS_SORT}>Mais amarelos</SelectItem>
                         <SelectItem value={DISCIPLINE_DIRECT_RED_CARDS_SORT}>
                           Mais vermelhos diretos
                         </SelectItem>
@@ -1100,10 +965,7 @@ export function ChampionshipsPageView({
                 </section>
               </TabsContent>
 
-              <TabsContent
-                value="champions"
-                className="glass-panel enter-section space-y-4 p-5"
-              >
+              <TabsContent value="champions" className="glass-panel enter-section space-y-4 p-5">
                 <h2 className="text-center text-xl font-display font-bold">
                   Campeões por modalidade
                 </h2>
@@ -1114,349 +976,279 @@ export function ChampionshipsPageView({
                   </p>
                 ) : (
                   <div className="space-y-4">
-                    {currentSeasonChampionHistory.map(
-                      (championshipChampionYearGroup, index) => (
-                        <div
-                          key={championshipChampionYearGroup.year}
-                          className="space-y-4 rounded-2xl app-card-muted p-4 text-center"
-                        >
-                          <div className="flex flex-col items-center justify-center gap-1">
-                            <h3 className="font-display text-lg font-bold">
-                              {championshipChampionYearGroup.year}
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                              {championshipChampionYearGroup.champions.length}{" "}
-                              modalidade(s)
+                    {currentSeasonChampionHistory.map((championshipChampionYearGroup, index) => (
+                      <div
+                        key={championshipChampionYearGroup.year}
+                        className="space-y-4 rounded-2xl app-card-muted p-4 text-center"
+                      >
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <h3 className="font-display text-lg font-bold">
+                            {championshipChampionYearGroup.year}
+                          </h3>
+                          <p className="text-xs text-muted-foreground">
+                            {championshipChampionYearGroup.champions.length} modalidade(s)
+                          </p>
+                        </div>
+
+                        {index === 0 && (firstPlaceTeam || secondPlaceTeam || thirdPlaceTeam) ? (
+                          <div className="space-y-2">
+                            <p className="text-sm font-semibold text-muted-foreground">
+                              Pódio geral (tempo real)
                             </p>
-                          </div>
-
-                          {index === 0 &&
-                          (firstPlaceTeam ||
-                            secondPlaceTeam ||
-                            thirdPlaceTeam) ? (
-                            <div className="space-y-2">
-                              <p className="text-sm font-semibold text-muted-foreground">
-                                Pódio geral (tempo real)
-                              </p>
-                              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                {firstPlaceTeam ? (
-                                  <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-center md:order-2">
-                                    <div className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
-                                      <Trophy className="h-3.5 w-3.5" />
-                                      1º lugar
-                                    </div>
-                                    <p className="mt-3 font-display text-lg font-bold">
-                                      {firstPlaceTeam.team_name}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      {formatStandingsPoints(
-                                        firstPlaceTeam.points,
-                                      )}{" "}
-                                      pts
-                                    </p>
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                              {firstPlaceTeam ? (
+                                <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4 text-center md:order-2">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                    <Trophy className="h-3.5 w-3.5" />
+                                    1º lugar
                                   </div>
-                                ) : null}
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {firstPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(firstPlaceTeam.points)} pts
+                                  </p>
+                                </div>
+                              ) : null}
 
-                                {secondPlaceTeam ? (
-                                  <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-1">
-                                    <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
-                                      <Medal className="h-3.5 w-3.5" />
-                                      2º lugar
-                                    </div>
-                                    <p className="mt-3 font-display text-lg font-bold">
-                                      {secondPlaceTeam.team_name}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      {formatStandingsPoints(
-                                        secondPlaceTeam.points,
-                                      )}{" "}
-                                      pts
-                                    </p>
+                              {secondPlaceTeam ? (
+                                <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-1">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                    <Medal className="h-3.5 w-3.5" />
+                                    2º lugar
                                   </div>
-                                ) : null}
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {secondPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(secondPlaceTeam.points)} pts
+                                  </p>
+                                </div>
+                              ) : null}
 
-                                {thirdPlaceTeam ? (
-                                  <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-3">
-                                    <div className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                                      <Award className="h-3.5 w-3.5" />
-                                      3º lugar
-                                    </div>
-                                    <p className="mt-3 font-display text-lg font-bold">
-                                      {thirdPlaceTeam.team_name}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                      {formatStandingsPoints(
-                                        thirdPlaceTeam.points,
-                                      )}{" "}
-                                      pts
-                                    </p>
+                              {thirdPlaceTeam ? (
+                                <div className="rounded-2xl app-card-emphasis p-4 text-center md:order-3">
+                                  <div className="inline-flex items-center justify-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                    <Award className="h-3.5 w-3.5" />
+                                    3º lugar
                                   </div>
-                                ) : null}
-                              </div>
+                                  <p className="mt-3 font-display text-lg font-bold">
+                                    {thirdPlaceTeam.team_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {formatStandingsPoints(thirdPlaceTeam.points)} pts
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
-                          ) : null}
+                          </div>
+                        ) : null}
 
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            {championshipChampionYearGroup.champions.map(
-                              (championshipChampion) => {
-                                const isCurrentYear =
-                                  String(awardsSeasonYear) ===
-                                  championshipChampionYearGroup.year;
-                                const supportsAwards =
-                                  resolveChampionshipSportSupportsAwards(
-                                    selectedChampionship.code,
-                                    championshipChampion.sport_name,
-                                  );
-                                const pendingAwardContext =
-                                  awardsRankings?.pending_award_contexts?.find(
-                                    (pendingContext) =>
-                                      pendingContext.naipe ===
-                                        championshipChampion.naipe &&
-                                      pendingContext.division ===
-                                        (championshipChampion.division ?? null),
-                                  ) ?? null;
-                                const awardsReady =
-                                  supportsAwards &&
-                                  isCurrentYear &&
-                                  awardsRankings != null &&
-                                  (awardsRankings.pending_award_contexts != null
-                                    ? pendingAwardContext == null
-                                    : awardsRankings.pending_matches_count ===
-                                      0);
-                                const scorerDrawResult =
-                                  awardsRankings?.award_draw_results?.find(
-                                    (r) =>
-                                      r.award_type === "TOP_SCORER" &&
-                                      r.naipe === championshipChampion.naipe &&
-                                      r.division ===
-                                        (championshipChampion.division ?? null),
-                                  ) ?? null;
-                                const defenseDrawResult =
-                                  awardsRankings?.award_draw_results?.find(
-                                    (r) =>
-                                      r.award_type === "BEST_GOALKEEPER" &&
-                                      r.naipe === championshipChampion.naipe &&
-                                      r.division ===
-                                        (championshipChampion.division ?? null),
-                                  ) ?? null;
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {championshipChampionYearGroup.champions.map((championshipChampion) => {
+                            const isCurrentYear =
+                              String(awardsSeasonYear) === championshipChampionYearGroup.year;
+                            const supportsAwards = resolveChampionshipSportSupportsAwards(
+                              selectedChampionship.code,
+                              championshipChampion.sport_name,
+                            );
+                            const pendingAwardContext =
+                              awardsRankings?.pending_award_contexts?.find(
+                                (pendingContext) =>
+                                  pendingContext.naipe === championshipChampion.naipe &&
+                                  pendingContext.division ===
+                                    (championshipChampion.division ?? null),
+                              ) ?? null;
+                            const awardsReady =
+                              supportsAwards &&
+                              isCurrentYear &&
+                              awardsRankings != null &&
+                              (awardsRankings.pending_award_contexts != null
+                                ? pendingAwardContext == null
+                                : awardsRankings.pending_matches_count === 0);
+                            const scorerDrawResult =
+                              awardsRankings?.award_draw_results?.find(
+                                (r) =>
+                                  r.award_type === "TOP_SCORER" &&
+                                  r.naipe === championshipChampion.naipe &&
+                                  r.division === (championshipChampion.division ?? null),
+                              ) ?? null;
+                            const defenseDrawResult =
+                              awardsRankings?.award_draw_results?.find(
+                                (r) =>
+                                  r.award_type === "BEST_GOALKEEPER" &&
+                                  r.naipe === championshipChampion.naipe &&
+                                  r.division === (championshipChampion.division ?? null),
+                              ) ?? null;
 
-                                const filteredScorers = isCurrentYear
-                                  ? [
-                                      ...(awardsRankings?.top_scorers ?? []),
-                                    ].filter(
-                                      (s) =>
-                                        s.naipe ===
-                                          championshipChampion.naipe &&
-                                        s.division ===
+                            const filteredScorers = isCurrentYear
+                              ? [...(awardsRankings?.top_scorers ?? [])].filter(
+                                  (s) =>
+                                    s.naipe === championshipChampion.naipe &&
+                                    s.division === championshipChampion.division &&
+                                    !competitionDisqualifications.some((disqualification) => {
+                                      return (
+                                        disqualification.naipe === championshipChampion.naipe &&
+                                        disqualification.division ===
                                           championshipChampion.division &&
-                                        !competitionDisqualifications.some(
-                                          (disqualification) => {
-                                            return (
-                                              disqualification.naipe ===
-                                                championshipChampion.naipe &&
-                                              disqualification.division ===
-                                                championshipChampion.division &&
-                                              disqualification.team_id ===
-                                                s.team_id
-                                            );
-                                          },
-                                        ),
-                                    )
-                                  : [];
-                                const sortedScorers = isCurrentYear
-                                  ? [...filteredScorers].sort(
-                                      (firstScorer, secondScorer) =>
-                                        compareAwardsRankingGoalScorers(
-                                          firstScorer,
-                                          secondScorer,
-                                          {
-                                            drawWinnerPlayerId:
-                                              scorerDrawResult?.winner_player_id ??
-                                              null,
-                                          },
-                                        ),
-                                    )
-                                  : [];
-                                const topScorer = isCurrentYear
-                                  ? (sortedScorers[0] ?? null)
-                                  : null;
+                                        disqualification.team_id === s.team_id
+                                      );
+                                    }),
+                                )
+                              : [];
+                            const sortedScorers = isCurrentYear
+                              ? [...filteredScorers].sort((firstScorer, secondScorer) =>
+                                  compareAwardsRankingGoalScorers(firstScorer, secondScorer, {
+                                    drawWinnerPlayerId: scorerDrawResult?.winner_player_id ?? null,
+                                  }),
+                                )
+                              : [];
+                            const topScorer = isCurrentYear ? (sortedScorers[0] ?? null) : null;
 
-                                const filteredBestDefenses = isCurrentYear
-                                  ? [
-                                      ...(awardsRankings?.best_defenses ?? []),
-                                    ].filter(
-                                      (g) =>
-                                        g.naipe ===
-                                          championshipChampion.naipe &&
-                                        g.division ===
+                            const filteredBestDefenses = isCurrentYear
+                              ? [...(awardsRankings?.best_defenses ?? [])].filter(
+                                  (g) =>
+                                    g.naipe === championshipChampion.naipe &&
+                                    g.division === championshipChampion.division &&
+                                    !competitionDisqualifications.some((disqualification) => {
+                                      return (
+                                        disqualification.naipe === championshipChampion.naipe &&
+                                        disqualification.division ===
                                           championshipChampion.division &&
-                                        !competitionDisqualifications.some(
-                                          (disqualification) => {
-                                            return (
-                                              disqualification.naipe ===
-                                                championshipChampion.naipe &&
-                                              disqualification.division ===
-                                                championshipChampion.division &&
-                                              disqualification.team_id ===
-                                                g.team_id
-                                            );
-                                          },
-                                        ),
-                                    )
-                                  : [];
-                                const bestDefense = isCurrentYear
-                                  ? ((defenseDrawResult
-                                      ? (filteredBestDefenses.find(
-                                          (g) =>
-                                            g.team_id ===
-                                            defenseDrawResult.winner_team_id,
-                                        ) ??
-                                        filteredBestDefenses.sort(
-                                          (a, b) =>
-                                            a.goals_against_average -
-                                              b.goals_against_average ||
-                                            a.goals_against - b.goals_against ||
-                                            b.matches_count - a.matches_count,
-                                        )[0])
-                                      : filteredBestDefenses.sort(
-                                          (a, b) =>
-                                            a.goals_against_average -
-                                              b.goals_against_average ||
-                                            a.goals_against - b.goals_against ||
-                                            b.matches_count - a.matches_count,
-                                        )[0]) ?? null)
-                                  : null;
+                                        disqualification.team_id === g.team_id
+                                      );
+                                    }),
+                                )
+                              : [];
+                            const bestDefense = isCurrentYear
+                              ? ((defenseDrawResult
+                                  ? (filteredBestDefenses.find(
+                                      (g) => g.team_id === defenseDrawResult.winner_team_id,
+                                    ) ??
+                                    filteredBestDefenses.sort(
+                                      (a, b) =>
+                                        a.goals_against_average - b.goals_against_average ||
+                                        a.goals_against - b.goals_against ||
+                                        b.matches_count - a.matches_count,
+                                    )[0])
+                                  : filteredBestDefenses.sort(
+                                      (a, b) =>
+                                        a.goals_against_average - b.goals_against_average ||
+                                        a.goals_against - b.goals_against ||
+                                        b.matches_count - a.matches_count,
+                                    )[0]) ?? null)
+                              : null;
 
-                                return (
-                                  <div
-                                    key={championshipChampion.match_id}
-                                    className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
-                                  >
-                                    <div className="space-y-1 text-center">
-                                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                                        {championshipChampion.sport_name}
-                                      </p>
-                                      <p className="text-sm text-muted-foreground">
-                                        {
-                                          MATCH_NAIPE_LABELS[
-                                            championshipChampion.naipe
-                                          ]
-                                        }
-                                        {championshipChampion.division
-                                          ? ` • ${TEAM_DIVISION_LABELS[championshipChampion.division]}`
-                                          : ""}
-                                      </p>
-                                    </div>
+                            return (
+                              <div
+                                key={championshipChampion.match_id}
+                                className="rounded-2xl app-card-emphasis p-4 text-center shadow-lg"
+                              >
+                                <div className="space-y-1 text-center">
+                                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                    {championshipChampion.sport_name}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {MATCH_NAIPE_LABELS[championshipChampion.naipe]}
+                                    {championshipChampion.division
+                                      ? ` • ${TEAM_DIVISION_LABELS[championshipChampion.division]}`
+                                      : ""}
+                                  </p>
+                                </div>
 
-                                    <div className="mt-4 flex flex-col items-center gap-3">
-                                      <div className="flex w-full flex-col items-center justify-center gap-1 text-center">
-                                        <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
-                                          <Trophy className="h-3.5 w-3.5" />
-                                          Campeã
-                                        </span>
-                                        <p className="font-display text-lg font-bold">
-                                          {
-                                            championshipChampion.champion_team_name
-                                          }
-                                        </p>
-                                      </div>
+                                <div className="mt-4 flex flex-col items-center gap-3">
+                                  <div className="flex w-full flex-col items-center justify-center gap-1 text-center">
+                                    <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-amber-500/20 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-600 dark:bg-amber-500/25 dark:text-amber-200">
+                                      <Trophy className="h-3.5 w-3.5" />
+                                      Campeã
+                                    </span>
+                                    <p className="font-display text-lg font-bold">
+                                      {championshipChampion.champion_team_name}
+                                    </p>
+                                  </div>
 
-                                      {championshipChampion.runner_up_team_name ||
-                                      championshipChampion.third_place_team_name ? (
-                                        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
-                                          {championshipChampion.runner_up_team_name ? (
-                                            <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
-                                              <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
-                                                <Medal className="h-3 w-3" />
-                                                Vice
-                                              </span>
-                                              <p className="mt-1 text-sm font-medium text-foreground/90">
-                                                {
-                                                  championshipChampion.runner_up_team_name
-                                                }
-                                              </p>
-                                            </div>
-                                          ) : null}
+                                  {championshipChampion.runner_up_team_name ||
+                                  championshipChampion.third_place_team_name ? (
+                                    <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
+                                      {championshipChampion.runner_up_team_name ? (
+                                        <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                          <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 dark:bg-slate-500/20 dark:text-slate-300">
+                                            <Medal className="h-3 w-3" />
+                                            Vice
+                                          </span>
+                                          <p className="mt-1 text-sm font-medium text-foreground/90">
+                                            {championshipChampion.runner_up_team_name}
+                                          </p>
+                                        </div>
+                                      ) : null}
 
-                                          {championshipChampion.third_place_team_name ? (
-                                            <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
-                                              <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
-                                                <Award className="h-3 w-3" />
-                                                3º lugar
-                                              </span>
-                                              <p className="mt-1 text-sm font-medium text-foreground/90">
-                                                {
-                                                  championshipChampion.third_place_team_name
-                                                }
-                                              </p>
-                                            </div>
-                                          ) : null}
+                                      {championshipChampion.third_place_team_name ? (
+                                        <div className="rounded-lg border border-border/40 px-2 py-1.5 text-center">
+                                          <span className="inline-flex items-center justify-center gap-1.5 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-orange-600 dark:bg-orange-500/20 dark:text-orange-300">
+                                            <Award className="h-3 w-3" />
+                                            3º lugar
+                                          </span>
+                                          <p className="mt-1 text-sm font-medium text-foreground/90">
+                                            {championshipChampion.third_place_team_name}
+                                          </p>
                                         </div>
                                       ) : null}
                                     </div>
+                                  ) : null}
+                                </div>
 
-                                    {supportsAwards && isCurrentYear ? (
-                                      <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
-                                        <div className="flex items-center justify-between gap-2 text-xs">
-                                          <span className="text-muted-foreground shrink-0">
-                                            Artilheiro
+                                {supportsAwards && isCurrentYear ? (
+                                  <div className="mt-3 border-t border-border/40 pt-3 space-y-1.5">
+                                    <div className="flex items-center justify-between gap-2 text-xs">
+                                      <span className="text-muted-foreground shrink-0">
+                                        Artilheiro
+                                      </span>
+                                      {awardsReady && topScorer ? (
+                                        <span className="truncate text-right font-medium">
+                                          {topScorer.player_name}
+                                          <span className="ml-1 text-muted-foreground">
+                                            • {topScorer.team_name} • {topScorer.goals}{" "}
+                                            {topScorer.goals === 1 ? "gol" : "gols"}
                                           </span>
-                                          {awardsReady && topScorer ? (
-                                            <span className="truncate text-right font-medium">
-                                              {topScorer.player_name}
-                                              <span className="ml-1 text-muted-foreground">
-                                                • {topScorer.team_name} •{" "}
-                                                {topScorer.goals}{" "}
-                                                {topScorer.goals === 1
-                                                  ? "gol"
-                                                  : "gols"}
-                                              </span>
-                                            </span>
-                                          ) : (
-                                            <span className="text-muted-foreground">
-                                              —
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center justify-between gap-2 text-xs">
-                                          <span className="text-muted-foreground shrink-0">
-                                            Melhor defesa
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">—</span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center justify-between gap-2 text-xs">
+                                      <span className="text-muted-foreground shrink-0">
+                                        Melhor defesa
+                                      </span>
+                                      {awardsReady && bestDefense ? (
+                                        <span className="truncate text-right font-medium">
+                                          {bestDefense.team_name}
+                                          <span className="ml-1 text-muted-foreground">
+                                            •{" "}
+                                            {bestDefense.goals_against_average.toLocaleString(
+                                              "pt-BR",
+                                              {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2,
+                                              },
+                                            )}{" "}
+                                            de média • {bestDefense.goals_against}{" "}
+                                            {bestDefense.goals_against === 1
+                                              ? "gol sofrido"
+                                              : "gols sofridos"}
                                           </span>
-                                          {awardsReady && bestDefense ? (
-                                            <span className="truncate text-right font-medium">
-                                              {bestDefense.team_name}
-                                              <span className="ml-1 text-muted-foreground">
-                                                •{" "}
-                                                {bestDefense.goals_against_average.toLocaleString(
-                                                  "pt-BR",
-                                                  {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2,
-                                                  },
-                                                )}{" "}
-                                                de média •{" "}
-                                                {bestDefense.goals_against}{" "}
-                                                {bestDefense.goals_against === 1
-                                                  ? "gol sofrido"
-                                                  : "gols sofridos"}
-                                              </span>
-                                            </span>
-                                          ) : (
-                                            <span className="text-muted-foreground">
-                                              —
-                                            </span>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ) : null}
+                                        </span>
+                                      ) : (
+                                        <span className="text-muted-foreground">—</span>
+                                      )}
+                                    </div>
                                   </div>
-                                );
-                              },
-                            )}
-                          </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
-                      ),
-                    )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </TabsContent>

@@ -158,9 +158,7 @@ function resolveLocalDraftSavedAt(championship_id: string): string | null {
     }
 
     const saved_at = (parsed_storage_value as Record<string, unknown>).local_saved_at;
-    return typeof saved_at == "string" && Number.isFinite(Date.parse(saved_at))
-      ? saved_at
-      : null;
+    return typeof saved_at == "string" && Number.isFinite(Date.parse(saved_at)) ? saved_at : null;
   } catch {
     return null;
   }
@@ -184,12 +182,10 @@ function shouldRestoreLocalDraftBeforeRemote(input: {
   }
 
   if (
-    input.localDraft.highest_unlocked_step_index !==
-    input.remoteDraft.highest_unlocked_step_index
+    input.localDraft.highest_unlocked_step_index !== input.remoteDraft.highest_unlocked_step_index
   ) {
     return (
-      input.localDraft.highest_unlocked_step_index >
-      input.remoteDraft.highest_unlocked_step_index
+      input.localDraft.highest_unlocked_step_index > input.remoteDraft.highest_unlocked_step_index
     );
   }
 

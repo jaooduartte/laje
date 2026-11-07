@@ -1,12 +1,5 @@
 import { PageContentSkeleton } from "@/components/skeletons/PageContentSkeleton";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { LogOut } from "lucide-react";
 import { Header } from "@/components/Header";
 import { OnlineVisitorsBadge } from "@/components/OnlineVisitorsBadge";
@@ -38,11 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  AdminPanelTab,
-  ChampionshipCode,
-  ChampionshipStatus,
-} from "@/lib/enums";
+import { AdminPanelTab, ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import type { MatchBracketContext } from "@/lib/championship";
 import type { AwardDrawPendingContext } from "@/hooks/usePendingAwardDraws";
 import type { ChampionshipBracketTieBreakPendingContext } from "@/domain/championship-brackets/championshipBracket.types";
@@ -274,22 +263,19 @@ export function AdminPageView({
   onInterlajeOpeningCeremonyBonusSaved = () => {},
   interlajeOverallStandingsRefreshKey = 0,
 }: AdminPageViewProps) {
-  const { usesDivisions: selectedChampionshipHasSeasonDivisions } =
-    useChampionshipSeasonRuntime({
-      championship: selectedChampionship,
-      seasonYear: selectedChampionship.current_season_year ?? null,
-    });
+  const { usesDivisions: selectedChampionshipHasSeasonDivisions } = useChampionshipSeasonRuntime({
+    championship: selectedChampionship,
+    seasonYear: selectedChampionship.current_season_year ?? null,
+  });
   const canViewScheduleDuringReview =
-    canViewScheduleTab &&
-    selectedChampionship.status === ChampionshipStatus.REVIEW;
+    canViewScheduleTab && selectedChampionship.status === ChampionshipStatus.REVIEW;
   const canViewOperationalIntervals =
     canViewScheduleTab &&
     [ChampionshipStatus.REVIEW, ChampionshipStatus.IN_PROGRESS].includes(
       selectedChampionship.status,
     );
 
-  const totalSorteiosCount =
-    pendingTieBreaksCount + pendingAwardDrawContexts.length;
+  const totalSorteiosCount = pendingTieBreaksCount + pendingAwardDrawContexts.length;
   const adminTabItems = useMemo(() => {
     const nextAdminTabItems: AdminTabItem[] = [];
 
@@ -445,9 +431,9 @@ export function AdminPageView({
   }, [selectedChampionship.status]);
 
   const tabsListRef = useRef<HTMLDivElement | null>(null);
-  const tabTriggerByValueRef = useRef<
-    Partial<Record<AdminPageTabValue, HTMLButtonElement | null>>
-  >({});
+  const tabTriggerByValueRef = useRef<Partial<Record<AdminPageTabValue, HTMLButtonElement | null>>>(
+    {},
+  );
   const refetchMatchesByActiveTabRef = useRef(onRefetchMatches);
   const [activeIndicatorLeft, setActiveIndicatorLeft] = useState(0);
   const [activeIndicatorWidth, setActiveIndicatorWidth] = useState(0);
@@ -455,9 +441,7 @@ export function AdminPageView({
   const { siteTotalOnlineVisitorsCount } = useOnlineVisitorsProviderContext();
 
   useEffect(() => {
-    const hasActiveTab = adminTabItems.some(
-      (adminTabItem) => adminTabItem.value == activeTab,
-    );
+    const hasActiveTab = adminTabItems.some((adminTabItem) => adminTabItem.value == activeTab);
 
     if (!hasActiveTab) {
       onActiveTabChange("");
@@ -472,8 +456,7 @@ export function AdminPageView({
       return;
     }
 
-    const activeTabTriggerElement =
-      tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
 
     if (!activeTabTriggerElement) {
       setShowActiveIndicator(false);
@@ -492,8 +475,7 @@ export function AdminPageView({
   }, [updateActiveIndicator]);
 
   useLayoutEffect(() => {
-    const activeTabTriggerElement =
-      tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
+    const activeTabTriggerElement = tabTriggerByValueRef.current[activeTab as AdminPageTabValue];
 
     if (!activeTabTriggerElement || typeof ResizeObserver == "undefined") {
       return;
@@ -540,10 +522,7 @@ export function AdminPageView({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="w-full lg:w-auto">
               <div className="mb-2 flex justify-center sm:hidden">
-                <OnlineVisitorsBadge
-                  onlineVisitorsCount={siteTotalOnlineVisitorsCount}
-                  showLabel
-                />
+                <OnlineVisitorsBadge onlineVisitorsCount={siteTotalOnlineVisitorsCount} showLabel />
               </div>
               <div className="flex items-center justify-center gap-4 sm:justify-start">
                 <h1 className="text-center text-2xl font-display font-bold sm:text-left">
@@ -558,10 +537,7 @@ export function AdminPageView({
             </div>
 
             <div className="flex w-full items-center gap-2 lg:w-auto">
-              <Select
-                value={selectedChampionshipCode}
-                onValueChange={onChampionshipCodeChange}
-              >
+              <Select value={selectedChampionshipCode} onValueChange={onChampionshipCodeChange}>
                 <SelectTrigger className="app-input-field h-10 min-w-0 flex-1 sm:w-[280px] sm:flex-none">
                   <SelectValue placeholder="Selecione o campeonato" />
                 </SelectTrigger>
@@ -591,16 +567,12 @@ export function AdminPageView({
           <div className="glass-panel enter-section flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               <div className="space-y-1 text-center sm:text-left">
-                <span className="text-sm font-medium">
-                  Status do campeonato
-                </span>
+                <span className="text-sm font-medium">Status do campeonato</span>
                 <p className="text-xs text-muted-foreground">
                   Temporada atual: {selectedChampionship.current_season_year}
                 </p>
                 {profileName ? (
-                  <p className="text-xs text-muted-foreground">
-                    Perfil atual: {profileName}
-                  </p>
+                  <p className="text-xs text-muted-foreground">Perfil atual: {profileName}</p>
                 ) : null}
               </div>
 
@@ -609,9 +581,7 @@ export function AdminPageView({
                   type="button"
                   variant="outline"
                   onClick={onAdvanceChampionshipSeason}
-                  disabled={
-                    !canManageChampionshipStatus || advancingChampionshipSeason
-                  }
+                  disabled={!canManageChampionshipStatus || advancingChampionshipSeason}
                 >
                   Abrir temporada {selectedChampionship.current_season_year + 1}
                 </Button>
@@ -621,19 +591,14 @@ export function AdminPageView({
             <Select
               value={selectedChampionship.status}
               onValueChange={onChampionshipStatusChange}
-              disabled={
-                updatingChampionshipStatus || !canManageChampionshipStatus
-              }
+              disabled={updatingChampionshipStatus || !canManageChampionshipStatus}
             >
               <SelectTrigger className="app-input-field h-10 w-full sm:w-[320px]">
                 <SelectValue placeholder="Alterar status" />
               </SelectTrigger>
               <SelectContent>
                 {championshipStatusOptions.map((championshipStatusOption) => (
-                  <SelectItem
-                    key={championshipStatusOption}
-                    value={championshipStatusOption}
-                  >
+                  <SelectItem key={championshipStatusOption} value={championshipStatusOption}>
                     {CHAMPIONSHIP_STATUS_LABELS[championshipStatusOption]}
                   </SelectItem>
                 ))}
@@ -666,8 +631,7 @@ export function AdminPageView({
                 key={adminTabItem.value}
                 value={adminTabItem.value}
                 ref={(triggerElement) => {
-                  tabTriggerByValueRef.current[adminTabItem.value] =
-                    triggerElement;
+                  tabTriggerByValueRef.current[adminTabItem.value] = triggerElement;
                 }}
                 className={cn(
                   "app-pill-option relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:px-4 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:focus-visible:ring-0 data-[state=active]:focus-visible:ring-offset-0",
@@ -675,24 +639,22 @@ export function AdminPageView({
                 )}
               >
                 {adminTabItem.label}
-                {adminTabItem.value === AdminPanelTab.CONTROL &&
-                  liveMatchesCount > 0 && (
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
-                      {liveMatchesCount}
-                    </span>
-                  )}
+                {adminTabItem.value === AdminPanelTab.CONTROL && liveMatchesCount > 0 && (
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {liveMatchesCount}
+                  </span>
+                )}
                 {adminTabItem.value === SCORE_SHEET_REVIEW_TAB_VALUE &&
                   pendingScoreSheetReviewCount > 0 && (
                     <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
                       {pendingScoreSheetReviewCount}
                     </span>
                   )}
-                {adminTabItem.value === TIE_BREAKS_TAB_VALUE &&
-                  totalSorteiosCount > 0 && (
-                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
-                      {totalSorteiosCount}
-                    </span>
-                  )}
+                {adminTabItem.value === TIE_BREAKS_TAB_VALUE && totalSorteiosCount > 0 && (
+                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
+                    {totalSorteiosCount}
+                  </span>
+                )}
                 {adminTabItem.value === AdminPanelTab.EVENTS &&
                   pendingLeagueEventReservationsCount > 0 && (
                     <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground shadow-sm">
@@ -771,24 +733,12 @@ export function AdminPageView({
                 championshipSports={championshipSports}
                 selectedChampionship={selectedChampionship}
                 championshipBracketView={matchesTabChampionshipBracketView}
-                loadingChampionshipBracket={
-                  loadingMatchesTabChampionshipBracket
-                }
-                matchBracketContextByMatchId={
-                  matchesTabMatchBracketContextByMatchId
-                }
-                matchRepresentationByMatchId={
-                  matchesTabMatchRepresentationByMatchId
-                }
-                visualQueuePositionByMatchId={
-                  matchesTabVisualQueuePositionByMatchId
-                }
-                estimatedStartTimeByMatchId={
-                  matchesTabEstimatedStartTimeByMatchId
-                }
-                isInitialLoading={
-                  matchesTabLoading || loadingMatchesTabChampionshipBracket
-                }
+                loadingChampionshipBracket={loadingMatchesTabChampionshipBracket}
+                matchBracketContextByMatchId={matchesTabMatchBracketContextByMatchId}
+                matchRepresentationByMatchId={matchesTabMatchRepresentationByMatchId}
+                visualQueuePositionByMatchId={matchesTabVisualQueuePositionByMatchId}
+                estimatedStartTimeByMatchId={matchesTabEstimatedStartTimeByMatchId}
+                isInitialLoading={matchesTabLoading || loadingMatchesTabChampionshipBracket}
                 isFetchingMatches={matchesTabFetching}
                 canManageMatches={canManageMatches}
                 hasMatchesEditPermission={canManageMatches}
@@ -797,9 +747,7 @@ export function AdminPageView({
                 onSeasonYearChange={onSelectedMatchesSeasonYearChange}
                 onRefetch={onRefetchMatches}
                 onRefetchChampionshipBracket={onRefetchChampionshipBracket}
-                onOpenTieBreaksTab={() =>
-                  onActiveTabChange(TIE_BREAKS_TAB_VALUE)
-                }
+                onOpenTieBreaksTab={() => onActiveTabChange(TIE_BREAKS_TAB_VALUE)}
                 externalPendingTieBreakContexts={pendingTieBreakContexts}
                 externalPendingTieBreakEditionId={pendingTieBreakEditionId}
                 externalLoadingPendingTieBreaks={loadingPendingTieBreaks}
@@ -971,19 +919,13 @@ export function AdminPageView({
 
           {canViewEventsTab ? (
             <TabsContent value={AdminPanelTab.EVENTS}>
-              <AdminLeagueEvents
-                teams={teams}
-                canManageLeagueEvents={canManageLeagueEvents}
-              />
+              <AdminLeagueEvents teams={teams} canManageLeagueEvents={canManageLeagueEvents} />
             </TabsContent>
           ) : null}
 
           {canViewLinksTab ? (
             <TabsContent value={AdminPanelTab.LINKS}>
-              <AdminLinks
-                championships={championships}
-                canManageLinks={canManageLinks}
-              />
+              <AdminLinks championships={championships} canManageLinks={canManageLinks} />
             </TabsContent>
           ) : null}
 
@@ -1007,9 +949,7 @@ export function AdminPageView({
 
           {canViewSettingsTab ? (
             <TabsContent value={AdminPanelTab.SETTINGS}>
-              <AdminPublicAccessSettings
-                canManageSettings={canManageSettings}
-              />
+              <AdminPublicAccessSettings canManageSettings={canManageSettings} />
             </TabsContent>
           ) : null}
         </Tabs>

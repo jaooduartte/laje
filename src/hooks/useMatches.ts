@@ -746,12 +746,8 @@ export function useMatches({
           );
           if (refreshOperationalContext) {
             setOperationalContextMatches(resolvedOperationalContextMatches);
-            setChampionshipSportsForEstimatedStartTime(
-              championshipSportsForEstimatedStartTimeRows,
-            );
-            setChampionshipBracketEditionsForEstimatedStartTime(
-              latestChampionshipBracketEditions,
-            );
+            setChampionshipSportsForEstimatedStartTime(championshipSportsForEstimatedStartTimeRows);
+            setChampionshipBracketEditionsForEstimatedStartTime(latestChampionshipBracketEditions);
           }
           return;
         }

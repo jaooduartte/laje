@@ -53,11 +53,7 @@ function resolveCompetitionKey(input: {
   naipe: ChampionshipBracketSetupFormValues["competitions"][number]["naipe"];
   division: ChampionshipBracketSetupFormValues["competitions"][number]["division"];
 }) {
-  return [
-    input.sport_id,
-    input.naipe,
-    input.division ?? "WITHOUT_DIVISION",
-  ].join("::");
+  return [input.sport_id, input.naipe, input.division ?? "WITHOUT_DIVISION"].join("::");
 }
 
 function resolveNormalizedSportName(sportName: string): string {
@@ -99,17 +95,11 @@ function resolveMinutesToTimeValue(minutes: number) {
   return `${hourValue}:${minuteValue}`;
 }
 
-function resolveDayInterval(
-  scheduleDay: ScheduleDayTimeWindowInput,
-): TimeInterval | null {
+function resolveDayInterval(scheduleDay: ScheduleDayTimeWindowInput): TimeInterval | null {
   const dayStartMinutes = resolveTimeValueToMinutes(scheduleDay.start_time);
   const dayEndMinutes = resolveTimeValueToMinutes(scheduleDay.end_time);
 
-  if (
-    dayStartMinutes == null ||
-    dayEndMinutes == null ||
-    dayEndMinutes <= dayStartMinutes
-  ) {
+  if (dayStartMinutes == null || dayEndMinutes == null || dayEndMinutes <= dayStartMinutes) {
     return null;
   }
 
@@ -119,9 +109,7 @@ function resolveDayInterval(
   };
 }
 
-function resolveBreakInterval(
-  scheduleDay: ScheduleDayTimeWindowInput,
-): TimeInterval | null {
+function resolveBreakInterval(scheduleDay: ScheduleDayTimeWindowInput): TimeInterval | null {
   const hasBreakStart = (scheduleDay.break_start_time ?? "").trim() != "";
   const hasBreakEnd = (scheduleDay.break_end_time ?? "").trim() != "";
 
@@ -134,9 +122,7 @@ function resolveBreakInterval(
   }
 
   const dayInterval = resolveDayInterval(scheduleDay);
-  const breakStartMinutes = resolveTimeValueToMinutes(
-    scheduleDay.break_start_time,
-  );
+  const breakStartMinutes = resolveTimeValueToMinutes(scheduleDay.break_start_time);
   const breakEndMinutes = resolveTimeValueToMinutes(scheduleDay.break_end_time);
 
   if (
@@ -211,10 +197,7 @@ function resolveAvailabilityIntervals({
   }
 
   return intervals.flatMap((interval) => {
-    if (
-      interval.end <= breakInterval.start ||
-      interval.start >= breakInterval.end
-    ) {
+    if (interval.end <= breakInterval.start || interval.start >= breakInterval.end) {
       return [interval];
     }
 
@@ -259,9 +242,7 @@ function resolveIntersectedIntervals(
 }
 
 function resolveMergedIntervals(intervals: TimeInterval[]): TimeInterval[] {
-  const sortedIntervals = [...intervals].sort(
-    (left, right) => left.start - right.start,
-  );
+  const sortedIntervals = [...intervals].sort((left, right) => left.start - right.start);
   const mergedIntervals: TimeInterval[] = [];
 
   sortedIntervals.forEach((interval) => {
@@ -330,9 +311,7 @@ function resolveCanonicalJsonValue(value: unknown): unknown {
     return Object.keys(value as Record<string, unknown>)
       .sort()
       .reduce<Record<string, unknown>>((carry, key) => {
-        carry[key] = resolveCanonicalJsonValue(
-          (value as Record<string, unknown>)[key],
-        );
+        carry[key] = resolveCanonicalJsonValue((value as Record<string, unknown>)[key]);
         return carry;
       }, {});
   }
@@ -401,9 +380,7 @@ function resolveSportMetadataBySportId(championshipSports: ChampionshipSport[]) 
   }, {});
 }
 
-function buildDefaultCompetitionDateAvailability(
-  payload: ChampionshipBracketSetupFormValues,
-) {
+function buildDefaultCompetitionDateAvailability(payload: ChampionshipBracketSetupFormValues) {
   return payload.competitions.flatMap((competition) =>
     payload.schedule_days.map((scheduleDay) => ({
       competition_key: resolveCompetitionKey(competition),
@@ -414,48 +391,43 @@ function buildDefaultCompetitionDateAvailability(
   );
 }
 
-function buildDefaultTeamCompetitionDateAvailability(
-  payload: ChampionshipBracketSetupFormValues,
-) {
-  const teamIdsByCompetitionKey = payload.competitions.reduce<
-    Record<string, string[]>
-  >((carry, competition) => {
-    const competitionKey = resolveCompetitionKey(competition);
+function buildDefaultTeamCompetitionDateAvailability(payload: ChampionshipBracketSetupFormValues) {
+  const teamIdsByCompetitionKey = payload.competitions.reduce<Record<string, string[]>>(
+    (carry, competition) => {
+      const competitionKey = resolveCompetitionKey(competition);
 
-    carry[competitionKey] = payload.participants
-      .filter((participant) =>
-        participant.modalities.some(
-          (modality) =>
-            modality.sport_id == competition.sport_id &&
-            modality.naipe == competition.naipe &&
-            modality.division == competition.division,
-        ),
-      )
-      .map((participant) => participant.team_id);
+      carry[competitionKey] = payload.participants
+        .filter((participant) =>
+          participant.modalities.some(
+            (modality) =>
+              modality.sport_id == competition.sport_id &&
+              modality.naipe == competition.naipe &&
+              modality.division == competition.division,
+          ),
+        )
+        .map((participant) => participant.team_id);
 
-    return carry;
-  }, {});
+      return carry;
+    },
+    {},
+  );
 
-  return Object.entries(teamIdsByCompetitionKey).flatMap(
-    ([competitionKey, teamIds]) =>
-      teamIds.flatMap((teamId) =>
-        payload.schedule_days.map((scheduleDay) => ({
-          team_id: teamId,
-          competition_key: competitionKey,
-          date: scheduleDay.date,
-          mode: "FULL_DAY" as const,
-          windows: [],
-        })),
-      ),
+  return Object.entries(teamIdsByCompetitionKey).flatMap(([competitionKey, teamIds]) =>
+    teamIds.flatMap((teamId) =>
+      payload.schedule_days.map((scheduleDay) => ({
+        team_id: teamId,
+        competition_key: competitionKey,
+        date: scheduleDay.date,
+        mode: "FULL_DAY" as const,
+        windows: [],
+      })),
+    ),
   );
 }
 
-function resolveCompetitionDateAvailabilityByKey(
-  payload: ChampionshipBracketSetupFormValues,
-) {
+function resolveCompetitionDateAvailabilityByKey(payload: ChampionshipBracketSetupFormValues) {
   const availabilityItems =
-    payload.competition_date_availability &&
-    payload.competition_date_availability.length > 0
+    payload.competition_date_availability && payload.competition_date_availability.length > 0
       ? payload.competition_date_availability
       : buildDefaultCompetitionDateAvailability(payload);
 
@@ -470,9 +442,7 @@ function resolveCompetitionDateAvailabilityByKey(
   );
 }
 
-function resolveTeamCompetitionDateAvailabilityByKey(
-  payload: ChampionshipBracketSetupFormValues,
-) {
+function resolveTeamCompetitionDateAvailabilityByKey(payload: ChampionshipBracketSetupFormValues) {
   const availabilityItems =
     payload.team_competition_date_availability &&
     payload.team_competition_date_availability.length > 0
@@ -537,10 +507,7 @@ function resolveCompetitionGroupSizes({
   teamIds.forEach((teamId, teamIndex) => {
     const groupNumber = (teamIndex % Math.max(1, competition.groups_count)) + 1;
 
-    groupSizeByNumber.set(
-      groupNumber,
-      (groupSizeByNumber.get(groupNumber) ?? 0) + 1,
-    );
+    groupSizeByNumber.set(groupNumber, (groupSizeByNumber.get(groupNumber) ?? 0) + 1);
   });
 
   return [...groupSizeByNumber.values()];
@@ -553,9 +520,7 @@ type EstimatedMatchDescriptor = Omit<
   competition_key: string | null;
 };
 
-function resolveEstimatedMatchPhaseRank(
-  phase: EstimatedMatchDescriptor["phase"],
-): number {
+function resolveEstimatedMatchPhaseRank(phase: EstimatedMatchDescriptor["phase"]): number {
   switch (phase) {
     case "GROUP_STAGE":
       return 0;
@@ -583,10 +548,7 @@ function resolveKnockoutPhaseDescriptors({
 }: {
   projectedBracketSize: number;
   durationMinutes: number;
-}): Pick<
-  EstimatedMatchDescriptor,
-  "phase" | "phase_label" | "duration_minutes"
->[] {
+}): Pick<EstimatedMatchDescriptor, "phase" | "phase_label" | "duration_minutes">[] {
   const descriptors: Pick<
     EstimatedMatchDescriptor,
     "phase" | "phase_label" | "duration_minutes"
@@ -678,9 +640,7 @@ function resolveCompetitionEstimatedMatchDescriptors({
   const knockoutPhaseDescriptors = resolveKnockoutPhaseDescriptors({
     projectedBracketSize: knockoutProjection.projected_bracket_size,
     durationMinutes,
-  }).filter(
-    (phaseDescriptor) => includeFinal || phaseDescriptor.phase != "FINAL",
-  );
+  }).filter((phaseDescriptor) => includeFinal || phaseDescriptor.phase != "FINAL");
 
   return [
     ...Array.from({ length: groupStageMatchCount }, () => ({
@@ -726,23 +686,14 @@ function resolveManualFinalEntries({
           (programBlock.division_scope == "ALL" ||
             competition.division == programBlock.division_scope),
       )
-      .sort((left, right) =>
-        (left.division ?? "").localeCompare(right.division ?? ""),
-      ),
+      .sort((left, right) => (left.division ?? "").localeCompare(right.division ?? "")),
   );
   const durationMinutes =
     programBlock.match_duration_minutes_override ??
-    Math.max(
-      1,
-      Math.floor(
-        (endMinutes - startMinutes) /
-          Math.max(1, competitionsByNaipe.length),
-      ),
-    );
+    Math.max(1, Math.floor((endMinutes - startMinutes) / Math.max(1, competitionsByNaipe.length)));
 
   return competitionsByNaipe.flatMap((competition, competitionIndex) => {
-    const entryStartMinutes =
-      startMinutes + competitionIndex * durationMinutes;
+    const entryStartMinutes = startMinutes + competitionIndex * durationMinutes;
     const entryEndMinutes = entryStartMinutes + durationMinutes;
 
     if (entryEndMinutes > endMinutes) {
@@ -772,8 +723,12 @@ function resolveCompetitionPreferenceScore({
   preferredDivision,
 }: {
   competition: ChampionshipBracketSetupFormValues["competitions"][number];
-  preferredNaipe: ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]["preferred_naipe"] | null;
-  preferredDivision: ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]["preferred_division"] | null;
+  preferredNaipe:
+    | ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]["preferred_naipe"]
+    | null;
+  preferredDivision:
+    | ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]["preferred_division"]
+    | null;
 }) {
   let score = 0;
 
@@ -799,9 +754,7 @@ function resolveRemainingCapacityMetrics({
 }) {
   const remainingMinutes = Math.max(0, freeMinutes - accumulatedMinutes);
   const additionalMatchCapacity =
-    matchDurationMinutes > 0
-      ? Math.floor(remainingMinutes / matchDurationMinutes)
-      : 0;
+    matchDurationMinutes > 0 ? Math.floor(remainingMinutes / matchDurationMinutes) : 0;
 
   return {
     remainingMinutes,
@@ -823,7 +776,10 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
   requestedMatchCount,
 }: {
   target: ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_match_targets"][number];
-  courtPreference: ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"] | null | undefined;
+  courtPreference:
+    | ChampionshipBracketSetupFormValues["schedule_days"][number]["locations"][number]["courts"][number]["sport_preference"]
+    | null
+    | undefined;
   competitions: ChampionshipBracketSetupFormValues["competitions"];
   sportName: string;
   durationMinutes: number;
@@ -850,9 +806,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
     .map((competition) => {
       const competitionKey = resolveCompetitionKey(competition);
       const competitionAvailability =
-        competitionDateAvailabilityByKey.get(
-          `${competitionKey}::${scheduleDay.date}`,
-        ) ??
+        competitionDateAvailabilityByKey.get(`${competitionKey}::${scheduleDay.date}`) ??
         ({
           competition_key: competitionKey,
           date: scheduleDay.date,
@@ -950,12 +904,8 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
         : competitionQueues;
 
   if (sequenceMode == "GROUP_NAIPE") {
-    const prioritizedNaipe =
-      preferredNaipe ?? orderedQueues[0]?.competition.naipe ?? null;
-    const phaseDescriptorsByRank = new Map<
-      number,
-      EstimatedMatchDescriptor[]
-    >();
+    const prioritizedNaipe = preferredNaipe ?? orderedQueues[0]?.competition.naipe ?? null;
+    const phaseDescriptorsByRank = new Map<number, EstimatedMatchDescriptor[]>();
 
     orderedQueues.forEach((queue) => {
       queue.descriptors.forEach((descriptor) => {
@@ -1004,16 +954,14 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
               return;
             }
 
-            const phaseSummary =
-              historicalPhaseDescriptorsByRank.get(phaseRank) ?? {
-                totalCount: 0,
-                consumedCount: 0,
-                naipes: new Set<MatchNaipe>(),
-              };
+            const phaseSummary = historicalPhaseDescriptorsByRank.get(phaseRank) ?? {
+              totalCount: 0,
+              consumedCount: 0,
+              naipes: new Set<MatchNaipe>(),
+            };
 
             phaseSummary.totalCount += 1;
-            phaseSummary.consumedCount +=
-              descriptorIndex < consumedDescriptorCount ? 1 : 0;
+            phaseSummary.consumedCount += descriptorIndex < consumedDescriptorCount ? 1 : 0;
             phaseSummary.naipes.add(descriptor.naipe);
             historicalPhaseDescriptorsByRank.set(phaseRank, phaseSummary);
           });
@@ -1026,8 +974,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
             phaseSummary.totalCount == phaseSummary.consumedCount &&
             phaseSummary.naipes.size == 1
           ) {
-            exclusiveKnockoutNaipe =
-              [...phaseSummary.naipes][0] ?? exclusiveKnockoutNaipe;
+            exclusiveKnockoutNaipe = [...phaseSummary.naipes][0] ?? exclusiveKnockoutNaipe;
           }
         });
     }
@@ -1040,9 +987,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
           return;
         }
 
-        const phaseNaipes = [
-          ...new Set(phaseDescriptors.map((descriptor) => descriptor.naipe)),
-        ];
+        const phaseNaipes = [...new Set(phaseDescriptors.map((descriptor) => descriptor.naipe))];
         const isKnockoutPhase = phaseRank > 0;
 
         if (
@@ -1060,8 +1005,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
           exclusiveKnockoutNaipe != null
         ) {
           knockoutPriorityNaipe =
-            phaseNaipes.find((naipe) => naipe != exclusiveKnockoutNaipe) ??
-            null;
+            phaseNaipes.find((naipe) => naipe != exclusiveKnockoutNaipe) ?? null;
         }
 
         const phasePriorityNaipe =
@@ -1074,26 +1018,16 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
         const fallbackDescriptors = phaseDescriptors.filter(
           (descriptor) => descriptor.naipe != phasePriorityNaipe,
         );
-        const availableMatchCount =
-          prioritizedDescriptors.length + fallbackDescriptors.length;
-        const phaseMatchCount = Math.min(
-          remainingRequestedMatchCount,
-          availableMatchCount,
-        );
+        const availableMatchCount = prioritizedDescriptors.length + fallbackDescriptors.length;
+        const phaseMatchCount = Math.min(remainingRequestedMatchCount, availableMatchCount);
 
         if (phaseMatchCount <= 0) {
           return;
         }
 
-        if (
-          prioritizedDescriptors.length == 0 ||
-          fallbackDescriptors.length == 0
-        ) {
+        if (prioritizedDescriptors.length == 0 || fallbackDescriptors.length == 0) {
           groupedDescriptors.push(
-            ...[...prioritizedDescriptors, ...fallbackDescriptors].slice(
-              0,
-              phaseMatchCount,
-            ),
+            ...[...prioritizedDescriptors, ...fallbackDescriptors].slice(0, phaseMatchCount),
           );
           remainingRequestedMatchCount -= phaseMatchCount;
           return;
@@ -1107,8 +1041,7 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
           fallbackDescriptors.length,
           phaseMatchCount - prioritizedMatchCount,
         );
-        let remainingPhaseMatchCount =
-          phaseMatchCount - prioritizedMatchCount - fallbackMatchCount;
+        let remainingPhaseMatchCount = phaseMatchCount - prioritizedMatchCount - fallbackMatchCount;
 
         if (remainingPhaseMatchCount > 0) {
           const additionalFallbackMatchCount = Math.min(
@@ -1168,12 +1101,8 @@ function resolveOrderedEstimatedMatchDescriptorQueue({
       index,
     }))
     .sort((left, right) => {
-      const leftPhaseRank = resolveEstimatedMatchPhaseRank(
-        left.descriptor.phase,
-      );
-      const rightPhaseRank = resolveEstimatedMatchPhaseRank(
-        right.descriptor.phase,
-      );
+      const leftPhaseRank = resolveEstimatedMatchPhaseRank(left.descriptor.phase);
+      const rightPhaseRank = resolveEstimatedMatchPhaseRank(right.descriptor.phase);
 
       if (leftPhaseRank != rightPhaseRank) {
         return leftPhaseRank - rightPhaseRank;
@@ -1233,11 +1162,7 @@ function resolveCourtBlockedIntervals({
       const startMinutes = resolveTimeValueToMinutes(resourceLock.start_time);
       const endMinutes = resolveTimeValueToMinutes(resourceLock.end_time);
 
-      if (
-        startMinutes == null ||
-        endMinutes == null ||
-        endMinutes <= startMinutes
-      ) {
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
         return;
       }
 
@@ -1260,11 +1185,7 @@ function resolveCourtBlockedIntervals({
       const startMinutes = resolveTimeValueToMinutes(sessionConfig.start_time);
       const endMinutes = resolveTimeValueToMinutes(sessionConfig.end_time);
 
-      if (
-        startMinutes == null ||
-        endMinutes == null ||
-        endMinutes <= startMinutes
-      ) {
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
         return;
       }
 
@@ -1287,11 +1208,7 @@ function resolveCourtBlockedIntervals({
       const startMinutes = resolveTimeValueToMinutes(programBlock.start_time);
       const endMinutes = resolveTimeValueToMinutes(programBlock.end_time);
 
-      if (
-        startMinutes == null ||
-        endMinutes == null ||
-        endMinutes <= startMinutes
-      ) {
+      if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
         return;
       }
 
@@ -1325,8 +1242,7 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
   knockoutProgramBlocks: ChampionshipBracketSetupFormValues["knockout_program_blocks"];
   championshipSports: ChampionshipSport[];
 }): ChampionshipBracketSportMatchTargetRecommendationResult {
-  const sportMetadataBySportId =
-    resolveSportMetadataBySportId(championshipSports);
+  const sportMetadataBySportId = resolveSportMetadataBySportId(championshipSports);
   const collectiveCompetitions = competitions.filter((competition) => {
     return !sportMetadataBySportId[competition.sport_id]?.is_individual;
   });
@@ -1344,24 +1260,25 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
     carry[competition.sport_id].push(resolveCompetitionKey(competition));
     return carry;
   }, {});
-  const collectiveTeamIdsByCompetitionKey = collectiveCompetitions.reduce<
-    Record<string, string[]>
-  >((carry, competition) => {
-    const competitionKey = resolveCompetitionKey(competition);
+  const collectiveTeamIdsByCompetitionKey = collectiveCompetitions.reduce<Record<string, string[]>>(
+    (carry, competition) => {
+      const competitionKey = resolveCompetitionKey(competition);
 
-    carry[competitionKey] = participants
-      .filter((participant) =>
-        participant.modalities.some(
-          (modality) =>
-            modality.sport_id == competition.sport_id &&
-            modality.naipe == competition.naipe &&
-            modality.division == competition.division,
-        ),
-      )
-      .map((participant) => participant.team_id);
+      carry[competitionKey] = participants
+        .filter((participant) =>
+          participant.modalities.some(
+            (modality) =>
+              modality.sport_id == competition.sport_id &&
+              modality.naipe == competition.naipe &&
+              modality.division == competition.division,
+          ),
+        )
+        .map((participant) => participant.team_id);
 
-    return carry;
-  }, {});
+      return carry;
+    },
+    {},
+  );
   const competitionDateAvailabilityByKey = new Map(
     competitionDateAvailability.map((availabilityItem) => [
       `${availabilityItem.competition_key}::${availabilityItem.date}`,
@@ -1391,47 +1308,42 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
         }),
       ),
   );
-  const requiredMatchCountBySportId = collectiveCompetitions.reduce<
-    Record<string, number>
-  >((carry, competition) => {
-    const sportMetadata = sportMetadataBySportId[competition.sport_id];
-    const descriptors = resolveCompetitionEstimatedMatchDescriptors({
-      competition,
-      sportName: sportMetadata?.sport_name ?? "Modalidade",
-      durationMinutes:
-        sportMetadata?.default_match_duration_minutes ??
-        DEFAULT_MATCH_DURATION_MINUTES,
-      teamIds:
-        collectiveTeamIdsByCompetitionKey[resolveCompetitionKey(competition)] ??
-        [],
-      includeFinal: !manualFinalCompetitionKeySet.has(
-        resolveCompetitionKey(competition),
-      ),
-    });
+  const requiredMatchCountBySportId = collectiveCompetitions.reduce<Record<string, number>>(
+    (carry, competition) => {
+      const sportMetadata = sportMetadataBySportId[competition.sport_id];
+      const descriptors = resolveCompetitionEstimatedMatchDescriptors({
+        competition,
+        sportName: sportMetadata?.sport_name ?? "Modalidade",
+        durationMinutes:
+          sportMetadata?.default_match_duration_minutes ?? DEFAULT_MATCH_DURATION_MINUTES,
+        teamIds: collectiveTeamIdsByCompetitionKey[resolveCompetitionKey(competition)] ?? [],
+        includeFinal: !manualFinalCompetitionKeySet.has(resolveCompetitionKey(competition)),
+      });
 
-    carry[competition.sport_id] =
-      (carry[competition.sport_id] ?? 0) + descriptors.length;
+      carry[competition.sport_id] = (carry[competition.sport_id] ?? 0) + descriptors.length;
 
-    return carry;
-  }, {});
-  const requiredMatchCountByCompetitionKey = collectiveCompetitions.reduce<
-    Record<string, number>
-  >((carry, competition) => {
-    const competitionKey = resolveCompetitionKey(competition);
-    const sportMetadata = sportMetadataBySportId[competition.sport_id];
-    const descriptors = resolveCompetitionEstimatedMatchDescriptors({
-      competition,
-      sportName: sportMetadata?.sport_name ?? "Modalidade",
-      durationMinutes:
-        sportMetadata?.default_match_duration_minutes ??
-        DEFAULT_MATCH_DURATION_MINUTES,
-      teamIds: collectiveTeamIdsByCompetitionKey[competitionKey] ?? [],
-      includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
-    });
+      return carry;
+    },
+    {},
+  );
+  const requiredMatchCountByCompetitionKey = collectiveCompetitions.reduce<Record<string, number>>(
+    (carry, competition) => {
+      const competitionKey = resolveCompetitionKey(competition);
+      const sportMetadata = sportMetadataBySportId[competition.sport_id];
+      const descriptors = resolveCompetitionEstimatedMatchDescriptors({
+        competition,
+        sportName: sportMetadata?.sport_name ?? "Modalidade",
+        durationMinutes:
+          sportMetadata?.default_match_duration_minutes ?? DEFAULT_MATCH_DURATION_MINUTES,
+        teamIds: collectiveTeamIdsByCompetitionKey[competitionKey] ?? [],
+        includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
+      });
 
-    carry[competitionKey] = descriptors.length;
-    return carry;
-  }, {});
+      carry[competitionKey] = descriptors.length;
+      return carry;
+    },
+    {},
+  );
   const manualMatchCountBySportId = scheduleDays.reduce<Record<string, number>>(
     (carry, scheduleDay) => {
       scheduleDay.locations.forEach((location) => {
@@ -1442,8 +1354,7 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
             }
 
             carry[target.sport_id] =
-              (carry[target.sport_id] ?? 0) +
-              Math.max(0, target.planned_match_count);
+              (carry[target.sport_id] ?? 0) + Math.max(0, target.planned_match_count);
           });
         });
       });
@@ -1452,17 +1363,13 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
     },
     {},
   );
-  const remainingAutoMatchCountBySportId = Object.entries(
-    requiredMatchCountBySportId,
-  ).reduce<Record<string, number>>((carry, [sportId, requiredMatchCount]) => {
-    carry[sportId] = Math.max(
-      0,
-      requiredMatchCount - (manualMatchCountBySportId[sportId] ?? 0),
-    );
+  const remainingAutoMatchCountBySportId = Object.entries(requiredMatchCountBySportId).reduce<
+    Record<string, number>
+  >((carry, [sportId, requiredMatchCount]) => {
+    carry[sportId] = Math.max(0, requiredMatchCount - (manualMatchCountBySportId[sportId] ?? 0));
     return carry;
   }, {});
-  const lineRecommendations: ChampionshipBracketSportMatchTargetRecommendationLine[] =
-    [];
+  const lineRecommendations: ChampionshipBracketSportMatchTargetRecommendationLine[] = [];
   const lineRecommendationContextByKey = new Map<
     string,
     {
@@ -1520,29 +1427,24 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
           }
         });
 
-        const orderedTargets = [...targetBySportId.values()].sort(
-          (left, right) =>
-            (sportMetadataBySportId[left.sport_id]?.sport_name ?? "").localeCompare(
-              sportMetadataBySportId[right.sport_id]?.sport_name ?? "",
-              "pt-BR",
-              { sensitivity: "base" },
-            ),
+        const orderedTargets = [...targetBySportId.values()].sort((left, right) =>
+          (sportMetadataBySportId[left.sport_id]?.sport_name ?? "").localeCompare(
+            sportMetadataBySportId[right.sport_id]?.sport_name ?? "",
+            "pt-BR",
+            { sensitivity: "base" },
+          ),
         );
 
         orderedTargets.forEach((target) => {
-          const planningMode =
-            (target.planning_mode ?? "MANUAL") satisfies ChampionshipBracketCourtSportMatchTargetPlanningMode;
+          const planningMode = (target.planning_mode ??
+            "MANUAL") satisfies ChampionshipBracketCourtSportMatchTargetPlanningMode;
           const sportMetadata = sportMetadataBySportId[target.sport_id];
           const durationMinutes =
-            sportMetadata?.default_match_duration_minutes ??
-            DEFAULT_MATCH_DURATION_MINUTES;
-          const sportCompetitionKeys =
-            collectiveCompetitionKeysBySportId[target.sport_id] ?? [];
+            sportMetadata?.default_match_duration_minutes ?? DEFAULT_MATCH_DURATION_MINUTES;
+          const sportCompetitionKeys = collectiveCompetitionKeysBySportId[target.sport_id] ?? [];
           const hasPlayableWindow = sportCompetitionKeys.some((competitionKey) => {
             const competitionAvailability =
-              competitionDateAvailabilityByKey.get(
-                `${competitionKey}::${scheduleDay.date}`,
-              ) ??
+              competitionDateAvailabilityByKey.get(`${competitionKey}::${scheduleDay.date}`) ??
               ({
                 competition_key: competitionKey,
                 date: scheduleDay.date,
@@ -1561,10 +1463,7 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
           const manualMatchCount = Math.max(0, target.planned_match_count);
           const additionalMatchCapacity =
             durationMinutes > 0
-              ? Math.floor(
-                  Math.max(0, freeCourtMinutes - reservedMinutes) /
-                    durationMinutes,
-                )
+              ? Math.floor(Math.max(0, freeCourtMinutes - reservedMinutes) / durationMinutes)
               : 0;
           const recommendedMatchCount =
             planningMode == "AUTO" && hasPlayableWindow
@@ -1579,18 +1478,14 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
           if (planningMode == "AUTO") {
             remainingAutoMatchCountBySportId[target.sport_id] = Math.max(
               0,
-              (remainingAutoMatchCountBySportId[target.sport_id] ?? 0) -
-                recommendedMatchCount,
+              (remainingAutoMatchCountBySportId[target.sport_id] ?? 0) - recommendedMatchCount,
             );
           }
 
           reservedMinutes += effectiveMatchCount * durationMinutes;
-          const recommendationKey = [
-            scheduleDay.id,
-            location.id,
-            court.id,
-            target.sport_id,
-          ].join("::");
+          const recommendationKey = [scheduleDay.id, location.id, court.id, target.sport_id].join(
+            "::",
+          );
 
           lineRecommendations.push({
             key: recommendationKey,
@@ -1604,18 +1499,11 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
             recommended_match_count: recommendedMatchCount,
             effective_match_count: effectiveMatchCount,
             free_minutes: freeCourtMinutes,
-            reserved_minutes_before_line:
-              reservedMinutes - effectiveMatchCount * durationMinutes,
-            remaining_minutes_after_line: Math.max(
-              0,
-              freeCourtMinutes - reservedMinutes,
-            ),
+            reserved_minutes_before_line: reservedMinutes - effectiveMatchCount * durationMinutes,
+            remaining_minutes_after_line: Math.max(0, freeCourtMinutes - reservedMinutes),
             additional_match_capacity:
               durationMinutes > 0
-                ? Math.floor(
-                    Math.max(0, freeCourtMinutes - reservedMinutes) /
-                      durationMinutes,
-                  )
+                ? Math.floor(Math.max(0, freeCourtMinutes - reservedMinutes) / durationMinutes)
                 : 0,
             has_playable_window: hasPlayableWindow,
             required_match_count: 0,
@@ -1637,19 +1525,12 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
   });
 
   const resolvedMatchCountByCompetitionKey: Record<string, number> = {};
-  const consumedEstimatedDescriptorCountByCompetitionKey = new Map<
-    string,
-    number
-  >();
+  const consumedEstimatedDescriptorCountByCompetitionKey = new Map<string, number>();
 
   lineRecommendations.forEach((recommendationLine) => {
-    const recommendationContext =
-      lineRecommendationContextByKey.get(recommendationLine.key);
+    const recommendationContext = lineRecommendationContextByKey.get(recommendationLine.key);
 
-    if (
-      !recommendationContext ||
-      recommendationLine.effective_match_count <= 0
-    ) {
+    if (!recommendationContext || recommendationLine.effective_match_count <= 0) {
       return;
     }
 
@@ -1682,46 +1563,40 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
           return;
         }
 
-        const existingBreakdown = competitionBreakdownByKey.get(
-          descriptor.competition_key,
-        );
+        const existingBreakdown = competitionBreakdownByKey.get(descriptor.competition_key);
 
         competitionBreakdownByKey.set(descriptor.competition_key, {
           competition_key: descriptor.competition_key,
           naipe: descriptor.naipe,
           division: descriptor.division,
-          planned_match_count:
-            (existingBreakdown?.planned_match_count ?? 0) + 1,
+          planned_match_count: (existingBreakdown?.planned_match_count ?? 0) + 1,
         });
         resolvedMatchCountByCompetitionKey[descriptor.competition_key] =
-          (resolvedMatchCountByCompetitionKey[descriptor.competition_key] ?? 0) +
-          1;
+          (resolvedMatchCountByCompetitionKey[descriptor.competition_key] ?? 0) + 1;
         consumedEstimatedDescriptorCountByCompetitionKey.set(
           descriptor.competition_key,
-          (consumedEstimatedDescriptorCountByCompetitionKey.get(
-            descriptor.competition_key,
-          ) ?? 0) + 1,
+          (consumedEstimatedDescriptorCountByCompetitionKey.get(descriptor.competition_key) ?? 0) +
+            1,
         );
       });
 
-    recommendationLine.competition_breakdowns = [
-      ...competitionBreakdownByKey.values(),
-    ];
+    recommendationLine.competition_breakdowns = [...competitionBreakdownByKey.values()];
   });
 
-  const resolvedMatchCountBySportId = lineRecommendations.reduce<
-    Record<string, number>
-  >((carry, recommendationLine) => {
-    const distributedMatchCount = recommendationLine.competition_breakdowns.reduce(
-      (totalMatchCount, competitionBreakdown) =>
-        totalMatchCount + competitionBreakdown.planned_match_count,
-      0,
-    );
+  const resolvedMatchCountBySportId = lineRecommendations.reduce<Record<string, number>>(
+    (carry, recommendationLine) => {
+      const distributedMatchCount = recommendationLine.competition_breakdowns.reduce(
+        (totalMatchCount, competitionBreakdown) =>
+          totalMatchCount + competitionBreakdown.planned_match_count,
+        0,
+      );
 
-    carry[recommendationLine.sport_id] =
-      (carry[recommendationLine.sport_id] ?? 0) + distributedMatchCount;
-    return carry;
-  }, {});
+      carry[recommendationLine.sport_id] =
+        (carry[recommendationLine.sport_id] ?? 0) + distributedMatchCount;
+      return carry;
+    },
+    {},
+  );
   const sportSummaryBySportId = Object.keys(requiredMatchCountBySportId).reduce<
     Record<string, ChampionshipBracketSportMatchTargetRecommendationSummary>
   >((carry, sportId) => {
@@ -1743,25 +1618,18 @@ export function resolveChampionshipBracketSportMatchTargetRecommendations({
     collectiveCompetitions.map<ChampionshipBracketCompetitionMatchTargetRecommendationSummary>(
       (competition) => {
         const competitionKey = resolveCompetitionKey(competition);
-        const requiredMatchCount =
-          requiredMatchCountByCompetitionKey[competitionKey] ?? 0;
-        const resolvedMatchCount =
-          resolvedMatchCountByCompetitionKey[competitionKey] ?? 0;
+        const requiredMatchCount = requiredMatchCountByCompetitionKey[competitionKey] ?? 0;
+        const resolvedMatchCount = resolvedMatchCountByCompetitionKey[competitionKey] ?? 0;
 
         return {
           competition_key: competitionKey,
           sport_id: competition.sport_id,
-          sport_name:
-            sportMetadataBySportId[competition.sport_id]?.sport_name ??
-            "Modalidade",
+          sport_name: sportMetadataBySportId[competition.sport_id]?.sport_name ?? "Modalidade",
           naipe: competition.naipe,
           division: competition.division,
           required_match_count: requiredMatchCount,
           resolved_match_count: resolvedMatchCount,
-          shortage_match_count: Math.max(
-            0,
-            requiredMatchCount - resolvedMatchCount,
-          ),
+          shortage_match_count: Math.max(0, requiredMatchCount - resolvedMatchCount),
           excess_match_count: Math.max(0, resolvedMatchCount - requiredMatchCount),
         };
       },
@@ -1791,31 +1659,28 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
   payload: ChampionshipBracketSetupFormValues;
   championshipSports: ChampionshipSport[];
 }): ChampionshipBracketReviewConfigurationSummary {
-  const sportMetadataBySportId =
-    resolveSportMetadataBySportId(championshipSports);
-  const teamIdsByCompetitionKey = payload.competitions.reduce<
-    Record<string, string[]>
-  >((carry, competition) => {
-    const competitionKey = resolveCompetitionKey(competition);
+  const sportMetadataBySportId = resolveSportMetadataBySportId(championshipSports);
+  const teamIdsByCompetitionKey = payload.competitions.reduce<Record<string, string[]>>(
+    (carry, competition) => {
+      const competitionKey = resolveCompetitionKey(competition);
 
-    carry[competitionKey] = payload.participants
-      .filter((participant) =>
-        participant.modalities.some(
-          (modality) =>
-            modality.sport_id == competition.sport_id &&
-            modality.naipe == competition.naipe &&
-            modality.division == competition.division,
-        ),
-      )
-      .map((participant) => participant.team_id);
+      carry[competitionKey] = payload.participants
+        .filter((participant) =>
+          participant.modalities.some(
+            (modality) =>
+              modality.sport_id == competition.sport_id &&
+              modality.naipe == competition.naipe &&
+              modality.division == competition.division,
+          ),
+        )
+        .map((participant) => participant.team_id);
 
-    return carry;
-  }, {});
+      return carry;
+    },
+    {},
+  );
   const collectiveCompetitions = payload.competitions
-    .filter(
-      (competition) =>
-        !sportMetadataBySportId[competition.sport_id]?.is_individual,
-    )
+    .filter((competition) => !sportMetadataBySportId[competition.sport_id]?.is_individual)
     .map((competition) => {
       const competitionKey = resolveCompetitionKey(competition);
       const manualFinalCompetitionKeySet = resolveManualFinalCompetitionKeySet({
@@ -1824,12 +1689,9 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
       });
       const matchDescriptors = resolveCompetitionEstimatedMatchDescriptors({
         competition,
-        sportName:
-          sportMetadataBySportId[competition.sport_id]?.sport_name ??
-          "Modalidade",
+        sportName: sportMetadataBySportId[competition.sport_id]?.sport_name ?? "Modalidade",
         durationMinutes:
-          sportMetadataBySportId[competition.sport_id]
-            ?.default_match_duration_minutes ??
+          sportMetadataBySportId[competition.sport_id]?.default_match_duration_minutes ??
           DEFAULT_MATCH_DURATION_MINUTES,
         teamIds: teamIdsByCompetitionKey[competitionKey] ?? [],
         includeFinal: !manualFinalCompetitionKeySet.has(competitionKey),
@@ -1844,9 +1706,7 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
       return {
         competition_key: competitionKey,
         sport_id: competition.sport_id,
-        sport_name:
-          sportMetadataBySportId[competition.sport_id]?.sport_name ??
-          "Modalidade",
+        sport_name: sportMetadataBySportId[competition.sport_id]?.sport_name ?? "Modalidade",
         naipe: competition.naipe,
         division: competition.division,
         expected_match_count:
@@ -1858,11 +1718,9 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
       };
     })
     .sort((left, right) => {
-      const sportNameComparison = left.sport_name.localeCompare(
-        right.sport_name,
-        "pt-BR",
-        { sensitivity: "base" },
-      );
+      const sportNameComparison = left.sport_name.localeCompare(right.sport_name, "pt-BR", {
+        sensitivity: "base",
+      });
 
       if (sportNameComparison != 0) {
         return sportNameComparison;
@@ -1896,32 +1754,27 @@ export function resolveChampionshipBracketReviewConfigurationSummary({
       sport_name: sportMetadata.sport_name,
       naipe: sessionConfig.naipe,
       division: sessionConfig.division,
-      configured_session_count:
-        (existingSummary?.configured_session_count ?? 0) + 1,
+      configured_session_count: (existingSummary?.configured_session_count ?? 0) + 1,
     });
   });
 
-  const individualSessions = [...individualSessionSummaryByKey.values()].sort(
-    (left, right) => {
-      const sportNameComparison = left.sport_name.localeCompare(
-        right.sport_name,
-        "pt-BR",
-        { sensitivity: "base" },
-      );
+  const individualSessions = [...individualSessionSummaryByKey.values()].sort((left, right) => {
+    const sportNameComparison = left.sport_name.localeCompare(right.sport_name, "pt-BR", {
+      sensitivity: "base",
+    });
 
-      if (sportNameComparison != 0) {
-        return sportNameComparison;
-      }
+    if (sportNameComparison != 0) {
+      return sportNameComparison;
+    }
 
-      const naipeComparison = left.naipe.localeCompare(right.naipe);
+    const naipeComparison = left.naipe.localeCompare(right.naipe);
 
-      if (naipeComparison != 0) {
-        return naipeComparison;
-      }
+    if (naipeComparison != 0) {
+      return naipeComparison;
+    }
 
-      return (left.division ?? "").localeCompare(right.division ?? "");
-    },
-  );
+    return (left.division ?? "").localeCompare(right.division ?? "");
+  });
 
   return {
     collective_competitions: collectiveCompetitions,
@@ -1938,8 +1791,7 @@ export function resolveChampionshipBracketStructuralReview({
   championshipSports: ChampionshipSport[];
   teams: Pick<Team, "id" | "name">[];
 }): ChampionshipBracketStructuralReviewResult {
-  const sportMetadataBySportId =
-    resolveSportMetadataBySportId(championshipSports);
+  const sportMetadataBySportId = resolveSportMetadataBySportId(championshipSports);
   const teamNameById = teams.reduce<Record<string, string>>((carry, team) => {
     carry[team.id] = team.name;
     return carry;
@@ -1964,28 +1816,27 @@ export function resolveChampionshipBracketStructuralReview({
     carry[competition.sport_id].push(resolveCompetitionKey(competition));
     return carry;
   }, {});
-  const collectiveTeamIdsByCompetitionKey = collectiveCompetitions.reduce<
-    Record<string, string[]>
-  >((carry, competition) => {
-    const competitionKey = resolveCompetitionKey(competition);
+  const collectiveTeamIdsByCompetitionKey = collectiveCompetitions.reduce<Record<string, string[]>>(
+    (carry, competition) => {
+      const competitionKey = resolveCompetitionKey(competition);
 
-    carry[competitionKey] = payload.participants
-      .filter((participant) =>
-        participant.modalities.some(
-          (modality) =>
-            modality.sport_id == competition.sport_id &&
-            modality.naipe == competition.naipe &&
-            modality.division == competition.division,
-        ),
-      )
-      .map((participant) => participant.team_id);
+      carry[competitionKey] = payload.participants
+        .filter((participant) =>
+          participant.modalities.some(
+            (modality) =>
+              modality.sport_id == competition.sport_id &&
+              modality.naipe == competition.naipe &&
+              modality.division == competition.division,
+          ),
+        )
+        .map((participant) => participant.team_id);
 
-    return carry;
-  }, {});
-  const competitionDateAvailabilityByKey =
-    resolveCompetitionDateAvailabilityByKey(payload);
-  const teamCompetitionDateAvailabilityByKey =
-    resolveTeamCompetitionDateAvailabilityByKey(payload);
+      return carry;
+    },
+    {},
+  );
+  const competitionDateAvailabilityByKey = resolveCompetitionDateAvailabilityByKey(payload);
+  const teamCompetitionDateAvailabilityByKey = resolveTeamCompetitionDateAvailabilityByKey(payload);
   const derivedSessionLockKeySet = new Set(
     payload.individual_session_configs
       .filter(
@@ -2012,10 +1863,7 @@ export function resolveChampionshipBracketStructuralReview({
   const diagnostics: ChampionshipBracketStructuralReviewDiagnostic[] = [];
   const plannedCollectiveSportIdSet = new Set<string>();
   const estimatedMatchNumberByKey = new Map<string, number>();
-  const consumedEstimatedDescriptorCountByCompetitionKey = new Map<
-    string,
-    number
-  >();
+  const consumedEstimatedDescriptorCountByCompetitionKey = new Map<string, number>();
   let plannedTargetCount = 0;
   let plannedMatchCount = 0;
   let collectivePlannedMinutes = 0;
@@ -2034,8 +1882,7 @@ export function resolveChampionshipBracketStructuralReview({
       const courts = location.courts.map((court) => {
         const fixedEntries: ChampionshipBracketStructuralReviewTimelineEntry[] = [];
         const fixedBlockedIntervals: TimeInterval[] = [];
-        const manualFinalEntries: ChampionshipBracketStructuralReviewManualFinalEntry[] =
-          [];
+        const manualFinalEntries: ChampionshipBracketStructuralReviewManualFinalEntry[] = [];
 
         if (breakInterval) {
           fixedEntries.push({
@@ -2075,8 +1922,7 @@ export function resolveChampionshipBracketStructuralReview({
             const interval =
               resourceLock.start_time && resourceLock.end_time
                 ? {
-                    start:
-                      resolveTimeValueToMinutes(resourceLock.start_time) ?? 0,
+                    start: resolveTimeValueToMinutes(resourceLock.start_time) ?? 0,
                     end: resolveTimeValueToMinutes(resourceLock.end_time) ?? 0,
                   }
                 : null;
@@ -2092,8 +1938,7 @@ export function resolveChampionshipBracketStructuralReview({
               duration_minutes: interval.end - interval.start,
               sport_id: resourceLock.sport_id ?? null,
               sport_name: resourceLock.sport_id
-                ? (sportMetadataBySportId[resourceLock.sport_id]?.sport_name ??
-                  "Modalidade")
+                ? (sportMetadataBySportId[resourceLock.sport_id]?.sport_name ?? "Modalidade")
                 : null,
               naipe: resourceLock.naipe ?? null,
               division: resourceLock.division ?? null,
@@ -2116,8 +1961,7 @@ export function resolveChampionshipBracketStructuralReview({
             const interval =
               sessionConfig.start_time && sessionConfig.end_time
                 ? {
-                    start:
-                      resolveTimeValueToMinutes(sessionConfig.start_time) ?? 0,
+                    start: resolveTimeValueToMinutes(sessionConfig.start_time) ?? 0,
                     end: resolveTimeValueToMinutes(sessionConfig.end_time) ?? 0,
                   }
                 : null;
@@ -2133,8 +1977,7 @@ export function resolveChampionshipBracketStructuralReview({
               duration_minutes: interval.end - interval.start,
               sport_id: sessionConfig.sport_id,
               sport_name:
-                sportMetadataBySportId[sessionConfig.sport_id]?.sport_name ??
-                "Modalidade",
+                sportMetadataBySportId[sessionConfig.sport_id]?.sport_name ?? "Modalidade",
               naipe: sessionConfig.naipe,
               division: sessionConfig.division,
               lock_mode: null,
@@ -2156,8 +1999,7 @@ export function resolveChampionshipBracketStructuralReview({
             const interval =
               programBlock.start_time && programBlock.end_time
                 ? {
-                    start:
-                      resolveTimeValueToMinutes(programBlock.start_time) ?? 0,
+                    start: resolveTimeValueToMinutes(programBlock.start_time) ?? 0,
                     end: resolveTimeValueToMinutes(programBlock.end_time) ?? 0,
                   }
                 : null;
@@ -2172,9 +2014,7 @@ export function resolveChampionshipBracketStructuralReview({
               end_time: resolveMinutesToTimeValue(interval.end),
               duration_minutes: interval.end - interval.start,
               sport_id: programBlock.sport_id,
-              sport_name:
-                sportMetadataBySportId[programBlock.sport_id]?.sport_name ??
-                "Modalidade",
+              sport_name: sportMetadataBySportId[programBlock.sport_id]?.sport_name ?? "Modalidade",
               naipe: null,
               division: null,
               lock_mode: null,
@@ -2188,8 +2028,7 @@ export function resolveChampionshipBracketStructuralReview({
                 endMinutes: interval.end,
                 competitions: collectiveCompetitions,
                 sportName:
-                  sportMetadataBySportId[programBlock.sport_id]?.sport_name ??
-                  "Modalidade",
+                  sportMetadataBySportId[programBlock.sport_id]?.sport_name ?? "Modalidade",
               }),
             );
           });
@@ -2203,19 +2042,11 @@ export function resolveChampionshipBracketStructuralReview({
           }))
           .sort((left, right) => left.start - right.start);
 
-        for (
-          let conflictIndex = 1;
-          conflictIndex < conflictIntervals.length;
-          conflictIndex += 1
-        ) {
+        for (let conflictIndex = 1; conflictIndex < conflictIntervals.length; conflictIndex += 1) {
           const previousInterval = conflictIntervals[conflictIndex - 1];
           const currentInterval = conflictIntervals[conflictIndex];
 
-          if (
-            previousInterval &&
-            currentInterval &&
-            currentInterval.start < previousInterval.end
-          ) {
+          if (previousInterval && currentInterval && currentInterval.start < previousInterval.end) {
             const canShareIndividualSessionSlot =
               previousInterval.entry.type == "INDIVIDUAL_SESSION" &&
               currentInterval.entry.type == "INDIVIDUAL_SESSION" &&
@@ -2275,8 +2106,8 @@ export function resolveChampionshipBracketStructuralReview({
         const freeCourtMinutes = resolveIntervalsMinutes(freeCourtIntervals);
         let accumulatedPlannedMinutes = 0;
         const selectedDescriptorCountByTargetKey = new Map<string, number>();
-        const orderedEstimatedMatchDescriptors = (court.sport_match_targets ?? [])
-          .flatMap((target) => {
+        const orderedEstimatedMatchDescriptors = (court.sport_match_targets ?? []).flatMap(
+          (target) => {
             const targetKey = [
               scheduleDay.date,
               location.location_key,
@@ -2285,30 +2116,22 @@ export function resolveChampionshipBracketStructuralReview({
             ].join("::");
             const sportMetadata = sportMetadataBySportId[target.sport_id];
             const durationMinutes =
-              sportMetadata?.default_match_duration_minutes ??
-              DEFAULT_MATCH_DURATION_MINUTES;
-            const orderedDescriptorQueue =
-              resolveOrderedEstimatedMatchDescriptorQueue({
-                target,
-                courtPreference: court.sport_preference,
-                competitions: collectiveCompetitions,
-                sportName: sportMetadata?.sport_name ?? "Modalidade",
-                durationMinutes,
-                collectiveTeamIdsByCompetitionKey,
-                manualFinalCompetitionKeySet,
-                scheduleDay,
-                competitionDateAvailabilityByKey,
-                consumedEstimatedDescriptorCountByCompetitionKey,
-                requestedMatchCount: target.planned_match_count,
-              });
-            const selectedDescriptors = orderedDescriptorQueue.slice(
-              0,
-              target.planned_match_count,
-            );
-            selectedDescriptorCountByTargetKey.set(
-              targetKey,
-              selectedDescriptors.length,
-            );
+              sportMetadata?.default_match_duration_minutes ?? DEFAULT_MATCH_DURATION_MINUTES;
+            const orderedDescriptorQueue = resolveOrderedEstimatedMatchDescriptorQueue({
+              target,
+              courtPreference: court.sport_preference,
+              competitions: collectiveCompetitions,
+              sportName: sportMetadata?.sport_name ?? "Modalidade",
+              durationMinutes,
+              collectiveTeamIdsByCompetitionKey,
+              manualFinalCompetitionKeySet,
+              scheduleDay,
+              competitionDateAvailabilityByKey,
+              consumedEstimatedDescriptorCountByCompetitionKey,
+              requestedMatchCount: target.planned_match_count,
+            });
+            const selectedDescriptors = orderedDescriptorQueue.slice(0, target.planned_match_count);
+            selectedDescriptorCountByTargetKey.set(targetKey, selectedDescriptors.length);
 
             selectedDescriptors.forEach((descriptor) => {
               if (!descriptor.competition_key) {
@@ -2317,14 +2140,14 @@ export function resolveChampionshipBracketStructuralReview({
 
               consumedEstimatedDescriptorCountByCompetitionKey.set(
                 descriptor.competition_key,
-                (consumedEstimatedDescriptorCountByCompetitionKey.get(
-                  descriptor.competition_key,
-                ) ?? 0) + 1,
+                (consumedEstimatedDescriptorCountByCompetitionKey.get(descriptor.competition_key) ??
+                  0) + 1,
               );
             });
 
             return selectedDescriptors;
-          });
+          },
+        );
 
         const planningItems: ChampionshipBracketStructuralReviewPlanningItem[] = (
           court.sport_match_targets ?? []
@@ -2341,16 +2164,12 @@ export function resolveChampionshipBracketStructuralReview({
 
           const sportMetadata = sportMetadataBySportId[target.sport_id];
           const durationMinutes =
-            sportMetadata?.default_match_duration_minutes ??
-            DEFAULT_MATCH_DURATION_MINUTES;
+            sportMetadata?.default_match_duration_minutes ?? DEFAULT_MATCH_DURATION_MINUTES;
           const plannedMinutes = target.planned_match_count * durationMinutes;
-          const sportCompetitionKeys =
-            collectiveCompetitionKeysBySportId[target.sport_id] ?? [];
+          const sportCompetitionKeys = collectiveCompetitionKeysBySportId[target.sport_id] ?? [];
           const hasPlayableWindow = sportCompetitionKeys.some((competitionKey) => {
             const competitionAvailability =
-              competitionDateAvailabilityByKey.get(
-                `${competitionKey}::${scheduleDay.date}`,
-              ) ??
+              competitionDateAvailabilityByKey.get(`${competitionKey}::${scheduleDay.date}`) ??
               ({
                 competition_key: competitionKey,
                 date: scheduleDay.date,
@@ -2384,13 +2203,9 @@ export function resolveChampionshipBracketStructuralReview({
             });
           }
 
-          const selectedDescriptorCount =
-            selectedDescriptorCountByTargetKey.get(targetKey) ?? 0;
+          const selectedDescriptorCount = selectedDescriptorCountByTargetKey.get(targetKey) ?? 0;
 
-          if (
-            hasPlayableWindow &&
-            selectedDescriptorCount < target.planned_match_count
-          ) {
+          if (hasPlayableWindow && selectedDescriptorCount < target.planned_match_count) {
             diagnostics.push({
               code: "STRUCTURAL_TARGET_ABOVE_REQUIRED_MATCH_COUNT",
               severity: "WARNING",
@@ -2413,9 +2228,7 @@ export function resolveChampionshipBracketStructuralReview({
 
           sportCompetitionKeys.forEach((competitionKey) => {
             const competitionAvailability =
-              competitionDateAvailabilityByKey.get(
-                `${competitionKey}::${scheduleDay.date}`,
-              ) ??
+              competitionDateAvailabilityByKey.get(`${competitionKey}::${scheduleDay.date}`) ??
               ({
                 competition_key: competitionKey,
                 date: scheduleDay.date,
@@ -2433,38 +2246,35 @@ export function resolveChampionshipBracketStructuralReview({
               return;
             }
 
-            (collectiveTeamIdsByCompetitionKey[competitionKey] ?? []).forEach(
-              (teamId) => {
-                const teamAvailability =
-                  teamCompetitionDateAvailabilityByKey.get(
-                    `${teamId}::${competitionKey}::${scheduleDay.date}`,
-                  ) ??
-                  ({
-                    team_id: teamId,
-                    competition_key: competitionKey,
-                    date: scheduleDay.date,
-                    mode: "FULL_DAY",
-                    windows: [],
-                  } satisfies ChampionshipBracketTeamCompetitionDateAvailabilityInput);
+            (collectiveTeamIdsByCompetitionKey[competitionKey] ?? []).forEach((teamId) => {
+              const teamAvailability =
+                teamCompetitionDateAvailabilityByKey.get(
+                  `${teamId}::${competitionKey}::${scheduleDay.date}`,
+                ) ??
+                ({
+                  team_id: teamId,
+                  competition_key: competitionKey,
+                  date: scheduleDay.date,
+                  mode: "FULL_DAY",
+                  windows: [],
+                } satisfies ChampionshipBracketTeamCompetitionDateAvailabilityInput);
 
-                const teamIntervals = resolveAvailabilityIntervals({
-                  scheduleDay,
-                  mode: teamAvailability.mode,
-                  windows: teamAvailability.windows,
-                });
+              const teamIntervals = resolveAvailabilityIntervals({
+                scheduleDay,
+                mode: teamAvailability.mode,
+                windows: teamAvailability.windows,
+              });
 
-                const intersectionIntervals = resolveIntersectedIntervals(
-                  competitionIntervals,
-                  teamIntervals,
-                );
-                const intersectionMinutes =
-                  resolveIntervalsMinutes(intersectionIntervals);
+              const intersectionIntervals = resolveIntersectedIntervals(
+                competitionIntervals,
+                teamIntervals,
+              );
+              const intersectionMinutes = resolveIntervalsMinutes(intersectionIntervals);
 
-                if (intersectionMinutes < durationMinutes) {
-                  restrictedTeamIds.add(teamId);
-                }
-              },
-            );
+              if (intersectionMinutes < durationMinutes) {
+                restrictedTeamIds.add(teamId);
+              }
+            });
           });
 
           if (restrictedTeamIds.size > 0) {
@@ -2488,12 +2298,11 @@ export function resolveChampionshipBracketStructuralReview({
 
           collectivePlannedMinutes += plannedMinutes;
           accumulatedPlannedMinutes += plannedMinutes;
-          const { remainingMinutes, additionalMatchCapacity } =
-            resolveRemainingCapacityMetrics({
-              freeMinutes: freeCourtMinutes,
-              accumulatedMinutes: accumulatedPlannedMinutes,
-              matchDurationMinutes: durationMinutes,
-            });
+          const { remainingMinutes, additionalMatchCapacity } = resolveRemainingCapacityMetrics({
+            freeMinutes: freeCourtMinutes,
+            accumulatedMinutes: accumulatedPlannedMinutes,
+            matchDurationMinutes: durationMinutes,
+          });
 
           return {
             type: "SPORT_TARGET",
@@ -2505,10 +2314,7 @@ export function resolveChampionshipBracketStructuralReview({
             free_minutes: freeCourtMinutes,
             remaining_minutes: remainingMinutes,
             additional_match_capacity: additionalMatchCapacity,
-            overflow_minutes: Math.max(
-              0,
-              accumulatedPlannedMinutes - freeCourtMinutes,
-            ),
+            overflow_minutes: Math.max(0, accumulatedPlannedMinutes - freeCourtMinutes),
             status: resolvePlanningItemStatus({
               accumulatedMinutes: accumulatedPlannedMinutes,
               freeMinutes: freeCourtMinutes,
@@ -2517,10 +2323,8 @@ export function resolveChampionshipBracketStructuralReview({
           };
         });
 
-        const estimatedMatchEntries: ChampionshipBracketStructuralReviewEstimatedMatchEntry[] =
-          [];
-        const pendingMatchEntries: ChampionshipBracketStructuralReviewPendingMatchEntry[] =
-          [];
+        const estimatedMatchEntries: ChampionshipBracketStructuralReviewEstimatedMatchEntry[] = [];
+        const pendingMatchEntries: ChampionshipBracketStructuralReviewPendingMatchEntry[] = [];
         let freeIntervalIndex = 0;
         let currentFreeIntervalCursor = freeCourtIntervals[0]?.start ?? null;
 
@@ -2530,9 +2334,8 @@ export function resolveChampionshipBracketStructuralReview({
               ? `${descriptor.sport_id}::${descriptor.naipe}`
               : payload.match_numbering_mode == "SPORT"
                 ? descriptor.sport_id
-              : `${location.location_key}::${court.court_key}`;
-          const nextMatchNumber =
-            (estimatedMatchNumberByKey.get(numberingKey) ?? 0) + 1;
+                : `${location.location_key}::${court.court_key}`;
+          const nextMatchNumber = (estimatedMatchNumberByKey.get(numberingKey) ?? 0) + 1;
 
           estimatedMatchNumberByKey.set(numberingKey, nextMatchNumber);
 
@@ -2543,13 +2346,9 @@ export function resolveChampionshipBracketStructuralReview({
               break;
             }
 
-            const currentStart =
-              currentFreeIntervalCursor ?? currentFreeInterval.start;
+            const currentStart = currentFreeIntervalCursor ?? currentFreeInterval.start;
 
-            if (
-              currentStart + descriptor.duration_minutes <=
-              currentFreeInterval.end
-            ) {
+            if (currentStart + descriptor.duration_minutes <= currentFreeInterval.end) {
               estimatedMatchEntries.push({
                 sport_id: descriptor.sport_id,
                 sport_name: descriptor.sport_name,
@@ -2560,20 +2359,16 @@ export function resolveChampionshipBracketStructuralReview({
                 duration_minutes: descriptor.duration_minutes,
                 match_number: nextMatchNumber,
                 start_time: resolveMinutesToTimeValue(currentStart),
-                end_time: resolveMinutesToTimeValue(
-                  currentStart + descriptor.duration_minutes,
-                ),
+                end_time: resolveMinutesToTimeValue(currentStart + descriptor.duration_minutes),
                 estimated: true,
               });
               estimatedMatchCount += 1;
-              currentFreeIntervalCursor =
-                currentStart + descriptor.duration_minutes;
+              currentFreeIntervalCursor = currentStart + descriptor.duration_minutes;
               return;
             }
 
             freeIntervalIndex += 1;
-            currentFreeIntervalCursor =
-              freeCourtIntervals[freeIntervalIndex]?.start ?? null;
+            currentFreeIntervalCursor = freeCourtIntervals[freeIntervalIndex]?.start ?? null;
           }
 
           unallocatedMatchCount += 1;
@@ -2590,21 +2385,16 @@ export function resolveChampionshipBracketStructuralReview({
         });
 
         const plannedCourtMinutes = planningItems.reduce(
-          (totalMinutes, planningItem) =>
-            totalMinutes + planningItem.planned_minutes,
+          (totalMinutes, planningItem) => totalMinutes + planningItem.planned_minutes,
           0,
         );
-        const courtOverflowMinutes = Math.max(
-          0,
-          plannedCourtMinutes - freeCourtMinutes,
-        );
+        const courtOverflowMinutes = Math.max(0, plannedCourtMinutes - freeCourtMinutes);
 
         if (courtOverflowMinutes > 0) {
           diagnostics.push({
             code: "STRUCTURAL_COURT_DAY_OVERFLOW",
             severity: "ERROR",
-            message:
-              "A soma dos minutos planejados excede a capacidade livre desta quadra no dia.",
+            message: "A soma dos minutos planejados excede a capacidade livre desta quadra no dia.",
             date: scheduleDay.date,
             location_name: location.name,
             court_name: court.name,
@@ -2756,9 +2546,7 @@ export function resolveChampionshipBracketStructuralScheduleSlots(
               division: entry.division,
               phase: entry.phase,
               match_kind:
-                entry.phase == "GROUP_STAGE"
-                  ? ("GROUP_STAGE" as const)
-                  : ("KNOCKOUT" as const),
+                entry.phase == "GROUP_STAGE" ? ("GROUP_STAGE" as const) : ("KNOCKOUT" as const),
               manual_final: false as const,
             },
           ];

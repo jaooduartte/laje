@@ -120,7 +120,7 @@ export function AdminBracketDrawModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        style={{ background: 'transparent', border: 'none', boxShadow: 'none' }}
+        style={{ background: "transparent", border: "none", boxShadow: "none" }}
         className="max-w-[640px] p-0 sm:max-w-[720px]"
       >
         <div className="relative flex min-h-[420px] flex-col items-center justify-center overflow-hidden rounded-[2.5rem] bg-white dark:bg-[#0c0c0e] p-6 text-center shadow-2xl border border-gray-200 dark:border-white/5 sm:p-10">
@@ -137,15 +137,19 @@ export function AdminBracketDrawModal({
 
           <div className="relative z-10 flex w-full flex-col items-center gap-8">
             <div className="space-y-2">
-              <p className={cn(
-                "text-xs font-black uppercase tracking-[0.3em] text-gray-500 dark:text-white transition-colors duration-500",
-              )}>
+              <p
+                className={cn(
+                  "text-xs font-black uppercase tracking-[0.3em] text-gray-500 dark:text-white transition-colors duration-500",
+                )}
+              >
                 {showResult ? "Atlética Sorteada" : "Sorteando Atlética"}
               </p>
-              <div className={cn(
-                "h-1 w-12 rounded-full mx-auto transition-colors duration-500",
-                showResult ? "bg-primary/40" : "bg-gray-300 dark:bg-white/40"
-              )} />
+              <div
+                className={cn(
+                  "h-1 w-12 rounded-full mx-auto transition-colors duration-500",
+                  showResult ? "bg-primary/40" : "bg-gray-300 dark:bg-white/40",
+                )}
+              />
             </div>
 
             <div className="min-h-[160px] flex items-center justify-center w-full">
@@ -154,7 +158,7 @@ export function AdminBracketDrawModal({
                   "w-full max-w-full break-words px-2 text-[clamp(2rem,9vw,5.5rem)] font-black leading-tight tracking-tighter [overflow-wrap:anywhere] transition-all duration-150",
                   isAnimating
                     ? "scale-95 blur-[4px] opacity-40 text-gray-400 dark:text-white"
-                    : "scale-100 blur-0 opacity-100 bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-white dark:to-slate-400 bg-clip-text text-transparent animate-in zoom-in-95 duration-500"
+                    : "scale-100 blur-0 opacity-100 bg-gradient-to-br from-gray-900 via-gray-700 to-gray-500 dark:from-white dark:via-white dark:to-slate-400 bg-clip-text text-transparent animate-in zoom-in-95 duration-500",
                 )}
               >
                 {displayedTeamName}
@@ -165,7 +169,9 @@ export function AdminBracketDrawModal({
               <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in-95 slide-in-from-bottom-8 duration-700 delay-300">
                 <div className="flex items-center gap-3">
                   <div className="h-px w-8 bg-gray-200 dark:bg-slate-800" />
-                  <span className="text-sm font-medium text-gray-400 dark:text-slate-400">Distribuída para</span>
+                  <span className="text-sm font-medium text-gray-400 dark:text-slate-400">
+                    Distribuída para
+                  </span>
                   <div className="h-px w-8 bg-gray-200 dark:bg-slate-800" />
                 </div>
 
@@ -174,23 +180,32 @@ export function AdminBracketDrawModal({
                     {resolveChampionshipGroupLabel(groupNumber)}
                   </Badge>
                   {competitionOption.division ? (
-                    <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
+                    <Badge
+                      variant="outline"
+                      className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200"
+                    >
                       {TEAM_DIVISION_LABELS[competitionOption.division]}
                     </Badge>
                   ) : null}
-                  <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
+                  <Badge
+                    variant="outline"
+                    className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200"
+                  >
                     {MATCH_NAIPE_LABELS[competitionOption.naipe]}
                   </Badge>
-                  <Badge variant="outline" className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200">
+                  <Badge
+                    variant="outline"
+                    className="border-gray-200 bg-gray-100 dark:border-slate-700 dark:bg-slate-900/50 px-3 py-1 text-sm text-gray-700 dark:text-slate-200"
+                  >
                     {competitionOption.sport_name}
                   </Badge>
                 </div>
               </div>
             )}
-            
+
             {showConfirmButton && (
               <div className="animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-700 mt-2">
-                <Button 
+                <Button
                   onClick={onConfirm}
                   size="lg"
                   className="bg-primary hover:bg-primary/90 text-white font-bold px-12 rounded-xl h-12 shadow-xl shadow-primary/20"

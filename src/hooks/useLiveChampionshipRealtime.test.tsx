@@ -12,7 +12,10 @@ const {
   listSportsCoreMatchesMock,
 } = vi.hoisted(() => ({
   channelCallbacks: [] as Array<
-    (payload: { new?: Record<string, unknown> | null; old?: Record<string, unknown> | null }) => void
+    (payload: {
+      new?: Record<string, unknown> | null;
+      old?: Record<string, unknown> | null;
+    }) => void
   >,
   channelMock: {
     on: vi.fn(),
@@ -30,7 +33,10 @@ channelMock.on.mockImplementation(
   (
     _event: string,
     _config: Record<string, unknown>,
-    callback: (payload: { new?: Record<string, unknown> | null; old?: Record<string, unknown> | null }) => void,
+    callback: (payload: {
+      new?: Record<string, unknown> | null;
+      old?: Record<string, unknown> | null;
+    }) => void,
   ) => {
     channelCallbacks.push(callback);
     return channelMock;
@@ -46,12 +52,11 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 vi.mock("@/hooks/useAwsRealtimePolling", () => ({
-  useAwsRealtimePolling: vi.fn((options: {
-    intervalMs: number;
-    onRefresh: () => void | Promise<void>;
-  }) => {
-    awsPollingRegistrations.push(options);
-  }),
+  useAwsRealtimePolling: vi.fn(
+    (options: { intervalMs: number; onRefresh: () => void | Promise<void> }) => {
+      awsPollingRegistrations.push(options);
+    },
+  ),
 }));
 
 vi.mock("@/config/environment", () => ({
@@ -213,7 +218,8 @@ describe("useLiveChampionshipRealtime", () => {
       home_score: 1,
     };
     const refresh = () =>
-      awsPollingRegistrations.find((registration) => registration.intervalMs == 30_000)
+      awsPollingRegistrations
+        .find((registration) => registration.intervalMs == 30_000)
         ?.onRefresh();
 
     listSportsCoreMatchesMock

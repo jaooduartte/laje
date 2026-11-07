@@ -446,7 +446,9 @@ function renderAdminMatchControl(params: {
         championshipSports={nextParams.championshipSports}
         isInitialLoading={nextParams.isInitialLoading}
         isFetchingMatches={nextParams.isFetchingMatches}
-        championshipBracketView={nextParams.championshipBracketView ?? buildChampionshipBracketView()}
+        championshipBracketView={
+          nextParams.championshipBracketView ?? buildChampionshipBracketView()
+        }
         matchBracketContextByMatchId={nextParams.matchBracketContextByMatchId ?? {}}
         visualQueuePositionByMatchId={nextParams.visualQueuePositionByMatchId}
         estimatedStartTimeByMatchId={nextParams.estimatedStartTimeByMatchId}
@@ -2712,10 +2714,7 @@ describe("AdminMatchControl", () => {
       },
     });
 
-    expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute(
-      "data-sports",
-      "Beach Soccer",
-    );
+    expect(screen.getByTestId("sport-filter-mock")).toHaveAttribute("data-sports", "Beach Soccer");
   });
 
   it("volta o filtro de modalidade para Todas quando a modalidade filtrada deixa de ter jogos no controle", async () => {

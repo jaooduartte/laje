@@ -8,14 +8,17 @@ const CHAMPIONSHIP_SELECTION_ORDER: Record<ChampionshipCode, number> = {
   [ChampionshipCode.INTERLAJE]: 2,
 };
 
-export function resolvePreferredAdminChampionshipCode(championships: Championship[]): ChampionshipCode {
+export function resolvePreferredAdminChampionshipCode(
+  championships: Championship[],
+): ChampionshipCode {
   const preferredChampionship = [...championships]
     .sort((firstChampionship, secondChampionship) => {
-      return CHAMPIONSHIP_SELECTION_ORDER[firstChampionship.code] - CHAMPIONSHIP_SELECTION_ORDER[secondChampionship.code];
+      return (
+        CHAMPIONSHIP_SELECTION_ORDER[firstChampionship.code] -
+        CHAMPIONSHIP_SELECTION_ORDER[secondChampionship.code]
+      );
     })
-    .find(
-    (championship) => championship.status != ChampionshipStatus.FINISHED,
-  );
+    .find((championship) => championship.status != ChampionshipStatus.FINISHED);
 
   return preferredChampionship?.code ?? ChampionshipCode.CLV;
 }

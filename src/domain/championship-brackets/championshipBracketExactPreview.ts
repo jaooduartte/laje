@@ -22,10 +22,7 @@ export function resolveExactPreviewCacheFromJob({
   scheduleDays: ChampionshipBracketScheduleDayInput[];
 }): ChampionshipBracketExactPreviewCache {
   const availableDays = new Map(
-    (previousResult?.days ?? []).map((previewDay) => [
-      previewDay.date,
-      previewDay,
-    ]),
+    (previousResult?.days ?? []).map((previewDay) => [previewDay.date, previewDay]),
   );
 
   return {
@@ -108,4 +105,3 @@ export function resolveExactPreviewResultShell({
     diagnostics: [],
   };
 }
-

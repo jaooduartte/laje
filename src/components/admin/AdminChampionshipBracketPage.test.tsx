@@ -115,9 +115,9 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: (...args: unknown[]) => {
       supabaseFromMock(...args);
       return {
-      update: vi.fn(() => ({
-        eq: vi.fn().mockResolvedValue({ error: null }),
-      })),
+        update: vi.fn(() => ({
+          eq: vi.fn().mockResolvedValue({ error: null }),
+        })),
       };
     },
   },

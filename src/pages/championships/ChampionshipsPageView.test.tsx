@@ -31,13 +31,11 @@ vi.mock("@/components/IndividualSportStandingsTable", () => ({
 vi.mock("@/components/ui/tabs", () => ({
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsNavigationList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  TabsNavigationTrigger: ({
-    children,
-    value,
-  }: {
-    children: ReactNode;
-    value: string;
-  }) => <button type="button" data-value={value}>{children}</button>,
+  TabsNavigationTrigger: ({ children, value }: { children: ReactNode; value: string }) => (
+    <button type="button" data-value={value}>
+      {children}
+    </button>
+  ),
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -138,7 +136,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.SOCIETY}
           selectedChampionshipIsFinished
-          championshipCardImageByCode={{ [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -280,7 +280,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.SOCIETY}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.SOCIETY]: "/society.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -402,7 +404,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.INTERLAJE}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}
@@ -474,7 +478,9 @@ describe("ChampionshipsPageView", () => {
           selectedChampionship={championship}
           selectedChampionshipCode={ChampionshipCode.INTERLAJE}
           selectedChampionshipIsFinished={false}
-          championshipCardImageByCode={{ [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>}
+          championshipCardImageByCode={
+            { [ChampionshipCode.INTERLAJE]: "/interlaje.svg" } as Record<ChampionshipCode, string>
+          }
           sports={[]}
           nextMatches={[]}
           isNextMatchesFetching={false}

@@ -7,7 +7,9 @@ import { ChampionshipCode, ChampionshipStatus } from "@/lib/enums";
 import { EMPTY_CHAMPIONSHIP_BRACKET_VIEW } from "@/lib/championship";
 import type { Championship, ChampionshipBracketView } from "@/lib/types";
 
-function buildChampionship(overrides: Partial<Championship> & Pick<Championship, "code">): Championship {
+function buildChampionship(
+  overrides: Partial<Championship> & Pick<Championship, "code">,
+): Championship {
   return {
     id: overrides.id ?? overrides.code,
     code: overrides.code,
