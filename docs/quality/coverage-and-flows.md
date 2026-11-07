@@ -15,6 +15,8 @@ npm run test:coverage
 
 O Vitest com `@vitest/coverage-v8@3.2.4` gera `coverage/frontend/coverage-summary.json`, `coverage/frontend/lcov.info` e `coverage/frontend/index.html`. O gate exige 25% de linhas em `src/**/*.{ts,tsx}`, incluindo arquivos de produção não exercitados. São excluídos testes, infraestrutura de testes, definições de tipos e o módulo de tipos gerados do Supabase; **não reduzir esse escopo para elevar a cobertura**. O CI publica o artefato `laje-frontend-coverage` mesmo em falhas. Consultar os números reais do CI; **a mera configuração do gate não comprova aprovação**.
 
+Nas PRs, um job separado publica ou atualiza um comentário com o resultado da cobertura, linhas cobertas e mínimo de 25%, branches, funções e o commit analisado. O comentário é informativo e não altera os gates existentes.
+
 ## Matriz automatizada dos três fluxos
 
 | Fluxo                                                       | Teste de smoke (mocks, sem dados reais)                                                                        | Evidência complementar necessária                                             |
