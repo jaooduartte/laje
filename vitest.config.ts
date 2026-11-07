@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     env: {
+      VITE_BACKEND_PROVIDER: "supabase",
+      VITE_API_URL: "",
       VITE_SUPABASE_URL: "https://example.supabase.co",
       VITE_SUPABASE_PUBLISHABLE_KEY: "test-publishable-key",
     },
