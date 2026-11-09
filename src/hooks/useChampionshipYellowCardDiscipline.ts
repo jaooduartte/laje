@@ -95,7 +95,7 @@ function fetchSharedChampionshipYellowCardDiscipline(
   const requestKey = resolveChampionshipYellowCardDisciplineRequestKey(championshipId, seasonYear);
   const currentRequest = championshipYellowCardDisciplineRequestByKey.get(requestKey);
 
-  if (currentRequest !== undefined) {
+  if (currentRequest) {
     return currentRequest;
   }
 

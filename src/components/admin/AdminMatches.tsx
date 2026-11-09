@@ -4874,7 +4874,7 @@ export function AdminMatches({
     setSelectedMatchIds((currentSelectedMatchIds) =>
       currentSelectedMatchIds.filter((selectedMatchId) => selectedMatchId != matchId),
     );
-    void onRefetch();
+    onRefetch();
     onRefetchChampionshipBracket();
   };
 
@@ -5997,7 +5997,7 @@ export function AdminMatches({
 
     toast.success("Jogos removidos.");
     setSelectedMatchIds([]);
-    void onRefetch();
+    onRefetch();
     onRefetchChampionshipBracket();
   };
 

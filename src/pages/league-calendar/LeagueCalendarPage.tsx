@@ -122,7 +122,7 @@ export function LeagueCalendarPage() {
       setLoadingYearLeagueEvents(false);
     };
 
-    void fetchYearLeagueEvents();
+    fetchYearLeagueEvents();
   }, [yearRange]);
 
   useEffect(() => {
@@ -148,7 +148,7 @@ export function LeagueCalendarPage() {
       setLoadingYearLeagueHolidays(false);
     };
 
-    void fetchYearLeagueHolidays();
+    fetchYearLeagueHolidays();
   }, [yearRange]);
 
   const calendarDays = useMemo(() => {

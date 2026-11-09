@@ -1036,7 +1036,7 @@ export function AdminLogs() {
       setAvailableUsers(nextAvailableUsers);
     };
 
-    void fetchTeamsAndUsers();
+    fetchTeamsAndUsers();
   }, []);
 
   useEffect(() => {
@@ -1130,7 +1130,7 @@ export function AdminLogs() {
       setLoading(false);
     };
 
-    void fetchLogs();
+    fetchLogs();
   }, [currentPage, itemsPerPage, resourceSearch, selectedActionType, selectedUserId]);
 
   const userFilterOptions = useMemo(() => {
