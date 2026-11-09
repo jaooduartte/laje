@@ -232,8 +232,13 @@ export function useMatches({
   enabled = true,
 }: UseMatchesOptions = {}) {
   const normalizedStatusesKey =
-    statuses && statuses.length > 0 ? [...new Set(statuses)].sort().join(",") : "";
-  const normalizedMatchIdsKey = matchIds == null ? null : [...new Set(matchIds)].sort().join(",");
+    statuses && statuses.length > 0
+      ? [...new Set(statuses)].sort((left, right) => left.localeCompare(right, "en-US")).join(",")
+      : "";
+  const normalizedMatchIdsKey =
+    matchIds == null
+      ? null
+      : [...new Set(matchIds)].sort((left, right) => left.localeCompare(right, "en-US")).join(",");
   const hasExplicitMatchIds = matchIds != null;
 
   const [matches, setMatches] = useState<Match[]>([]);
@@ -1061,7 +1066,7 @@ export function useMatches({
       return;
     }
 
-    fetchMatches({
+    void fetchMatches({
       showLoading: !hasLoadedMatchesRef.current,
       showFetching: hasLoadedMatchesRef.current,
     });
@@ -1172,7 +1177,7 @@ export function useMatches({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchMatches, includeRealtime, seasonYear]);
 

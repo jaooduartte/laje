@@ -1636,7 +1636,7 @@ export function AdminStandings({
         ...awardsRankings.top_scorers.map((s) => `${s.naipe}:${s.division ?? "NULL"}`),
         ...awardsRankings.best_defenses.map((g) => `${g.naipe}:${g.division ?? "NULL"}`),
       ]),
-    ).sort();
+    ).sort((left, right) => left.localeCompare(right, "en-US"));
 
     return allGroupKeys.filter((groupKey) => {
       const [groupNaipe, groupDivisionRaw] = groupKey.split(":");
@@ -2193,10 +2193,9 @@ export function AdminStandings({
                                   scorerDrawResult?.winner_player_id === scorer.player_id;
                                 const isInDraw =
                                   !!scorerDrawResult &&
-                                  winnerScorer != null &&
-                                  scorer.goals === winnerScorer.goals &&
+                                  scorer.goals === winnerScorer?.goals &&
                                   scorer.team_advancement_rank ===
-                                    winnerScorer.team_advancement_rank;
+                                    winnerScorer?.team_advancement_rank;
                                 return (
                                   <li
                                     key={`${scorer.player_id}:${scorer.naipe}:${scorer.division ?? "NULL"}`}

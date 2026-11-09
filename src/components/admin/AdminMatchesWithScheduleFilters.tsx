@@ -33,7 +33,9 @@ function createFilteredMatchesWithScheduleMetadata(
           callback: (match: Match, index: number, matches: Match[]) => T,
           thisArg?: unknown,
         ): T[] => {
-          const mappedValues = target.map(callback, thisArg);
+          const mappedValues = target.map((match, index, matches) =>
+            Reflect.apply(callback, thisArg, [match, index, matches]),
+          );
 
           placeholderMatches.forEach((placeholderMatch, placeholderIndex) => {
             try {
@@ -61,7 +63,9 @@ function createFilteredMatchesWithScheduleMetadata(
           callback: (match: Match, index: number, matches: Match[]) => void,
           thisArg?: unknown,
         ): void => {
-          target.forEach(callback, thisArg);
+          target.forEach((match, index, matches) => {
+            Reflect.apply(callback, thisArg, [match, index, matches]);
+          });
 
           placeholderMatches.forEach((placeholderMatch, placeholderIndex) => {
             try {
@@ -102,7 +106,9 @@ export function createMatchesWithSchedulePlaceholderFilterMetadata(
           predicate: (match: Match, index: number, matches: Match[]) => unknown,
           thisArg?: unknown,
         ): Match[] => {
-          const filteredRealMatches = target.filter(predicate, thisArg);
+          const filteredRealMatches = target.filter((match, index, matches) =>
+            Reflect.apply(predicate, thisArg, [match, index, matches]),
+          );
           const filteredPlaceholderMatches = placeholderMatches.filter(
             (placeholderMatch, placeholderIndex) =>
               Boolean(
@@ -174,7 +180,7 @@ function resolveSchedulePlaceholderMatches(props: AdminMatchesProps): Match[] {
   );
 }
 
-export function AdminMatchesWithScheduleFilters(props: AdminMatchesProps) {
+export function AdminMatchesWithScheduleFilters(props: Readonly<AdminMatchesProps>) {
   const schedulePlaceholderMatches = useMemo(
     () => resolveSchedulePlaceholderMatches(props),
     [props],
