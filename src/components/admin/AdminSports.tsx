@@ -328,7 +328,7 @@ export function AdminSports({
     }
 
     const draftValue = walkoverDraftBySportId[sportId] ?? "";
-    const parsedValue = draftValue.trim() === "" ? null : parseInt(draftValue, 10);
+    const parsedValue = draftValue.trim() === "" ? null : Number.parseInt(draftValue, 10);
 
     if (parsedValue !== null && (isNaN(parsedValue) || parsedValue <= 0)) {
       toast.error("Informe um número inteiro positivo ou deixe vazio para desabilitar o W.O.");
@@ -632,7 +632,7 @@ export function AdminSports({
     : null;
   const isSavingPendingWalkoverConfiguration =
     pendingWalkoverConfiguration != null &&
-    savingSportIdById[pendingWalkoverConfiguration.championshipSport.id] == true;
+    Boolean(savingSportIdById[pendingWalkoverConfiguration.championshipSport.id]);
 
   if (isLoading) {
     return (
