@@ -1399,8 +1399,8 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     expect(exactPreviewDay.getByText("Masculino")).toBeInTheDocument();
     expect(exactPreviewDay.getByText("Fase de grupos")).toBeInTheDocument();
     expect(exactPreviewDay.queryByText("Grupo A")).not.toBeInTheDocument();
-    expect(exactPreviewDay.getByText("Atlética A × Atlética B")).toHaveClass("break-words");
-    expect(exactPreviewDay.getByText("Futsal")).toHaveClass("break-words");
+    expect(exactPreviewDay.getByText("Atlética A × Atlética B")).toHaveClass("wrap-break-word");
+    expect(exactPreviewDay.getByText("Futsal")).toHaveClass("wrap-break-word");
     expect(exactPreviewDay.getByText("Reserva fixa")).toBeInTheDocument();
     expect(exactPreviewDay.getAllByText("Janela livre")).toHaveLength(1);
     expect(exactPreviewDay.getAllByText("Intervalo")).toHaveLength(1);
@@ -1563,7 +1563,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     const sportName = within(estimatedEntry).getByText("Futsal");
 
     expect(badgeColumn).toHaveClass("flex-col", "items-center");
-    expect(sportName).toHaveClass("whitespace-normal", "break-words");
+    expect(sportName).toHaveClass("whitespace-normal", "wrap-break-word");
     expect(sportName).not.toHaveClass("truncate");
   });
 

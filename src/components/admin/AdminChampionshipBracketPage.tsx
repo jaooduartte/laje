@@ -204,7 +204,7 @@ function ChampionshipBracketFieldLabel({
   helpText?: string | null;
 }) {
   return (
-    <div className="mb-1 min-h-[32px]">
+    <div className="mb-1 min-h-8">
       <div className="inline-flex max-w-full items-center gap-1.5">
         <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
           {label}
@@ -9013,7 +9013,7 @@ export function AdminChampionshipBracketPage({
                             void handleStepNavigation(stepIndex);
                           }}
                           disabled={!isStepUnlocked || saving || wizardNavigationDirection != null}
-                          className={`flex min-h-[56px] items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
+                          className={`flex min-h-14 items-center justify-center rounded-xl px-3 py-2 text-center text-xs font-semibold transition-colors ${
                             isCurrentStep
                               ? "bg-primary text-primary-foreground shadow-[0_6px_14px_rgba(220,38,38,0.32)] dark:shadow-none"
                               : isStepUnlocked
@@ -10487,7 +10487,7 @@ export function AdminChampionshipBracketPage({
                                       }}
                                       placeholder="Início"
                                       defaultTime="08:00"
-                                      className="max-w-[220px]"
+                                      className="max-w-55"
                                     />
                                   </div>
 
@@ -10513,7 +10513,7 @@ export function AdminChampionshipBracketPage({
                                       }}
                                       placeholder="Fim"
                                       defaultTime="18:00"
-                                      className="max-w-[220px]"
+                                      className="max-w-55"
                                     />
                                   </div>
                                 </div>
@@ -10531,7 +10531,7 @@ export function AdminChampionshipBracketPage({
                                           break_start_time: value,
                                         }))
                                       }
-                                      className="sm:max-w-[220px]"
+                                      className="sm:max-w-55"
                                     />
                                   </div>
                                   <div className="flex flex-col items-start gap-1.5">
@@ -10546,7 +10546,7 @@ export function AdminChampionshipBracketPage({
                                           break_end_time: value,
                                         }))
                                       }
-                                      className="sm:max-w-[220px]"
+                                      className="sm:max-w-55"
                                     />
                                   </div>
                                 </div>
@@ -14181,7 +14181,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             >
                                               <div className="flex flex-col items-center border-b border-border/30 pb-3 text-center">
                                                 <div className="w-full min-w-0">
-                                                  <p className="break-words text-sm font-bold">
+                                                  <p className="wrap-break-word text-sm font-bold">
                                                     {court.court_name}
                                                   </p>
                                                   <p className="text-[11px] text-muted-foreground">
@@ -14231,14 +14231,14 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                 <div className="flex w-full min-w-0 flex-col items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide">
                                                                   <AppBadge
                                                                     tone={AppBadgeTone.SILVER}
-                                                                    className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                    className="max-w-full whitespace-normal wrap-break-word border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                   >
                                                                     Jogo{" "}
                                                                     {estimatedEntry.match_number}
                                                                   </AppBadge>
                                                                   <AppBadge
                                                                     tone={AppBadgeTone.AMBER}
-                                                                    className="max-w-full whitespace-normal break-words border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                    className="max-w-full whitespace-normal wrap-break-word border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
                                                                   >
                                                                     Previsão local
                                                                   </AppBadge>
@@ -14248,7 +14248,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                         estimatedEntry.naipe
                                                                       ]
                                                                     }
-                                                                    className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
+                                                                    className="max-w-full whitespace-normal wrap-break-word px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                   >
                                                                     {
                                                                       MATCH_NAIPE_LABELS[
@@ -14256,7 +14256,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       ]
                                                                     }
                                                                   </AppBadge>
-                                                                  <span className="max-w-full whitespace-normal break-words rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                  <span className="max-w-full whitespace-normal wrap-break-word rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                                                                     {estimatedEntry.phase_label}
                                                                   </span>
                                                                   {estimatedEntry.division ? (
@@ -14266,7 +14266,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                           estimatedEntry.division
                                                                         ]
                                                                       }
-                                                                      className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
+                                                                      className="max-w-full whitespace-normal wrap-break-word px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                     >
                                                                       {
                                                                         TEAM_DIVISION_LABELS[
@@ -14276,7 +14276,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                     </AppBadge>
                                                                   ) : null}
 
-                                                                  <p className="mt-1 w-full whitespace-normal break-words text-sm font-semibold leading-tight">
+                                                                  <p className="mt-1 w-full whitespace-normal wrap-break-word text-sm font-semibold leading-tight">
                                                                     {estimatedEntry.sport_name}
                                                                   </p>
                                                                 </div>
@@ -14355,7 +14355,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       entry,
                                                                     )}
                                                                   </p>
-                                                                  <p className="mt-1 whitespace-normal break-words text-sm font-semibold">
+                                                                  <p className="mt-1 whitespace-normal wrap-break-word text-sm font-semibold">
                                                                     {entry.type == "FREE_WINDOW"
                                                                       ? "Janela disponível"
                                                                       : (entry.sport_name ??
@@ -14462,7 +14462,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                         >
                                                           <div className="flex flex-col items-center">
                                                             <div className="w-full min-w-0">
-                                                              <p className="whitespace-normal break-words text-sm font-semibold">
+                                                              <p className="whitespace-normal wrap-break-word text-sm font-semibold">
                                                                 {planningItem.sport_name}
                                                               </p>
                                                               <p className="mt-1 text-xs text-muted-foreground">
@@ -14497,22 +14497,22 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                           </div>
 
                                                           <div className="mt-2 flex flex-col items-center gap-1 text-center text-[11px] text-muted-foreground">
-                                                            <span className="break-words">
+                                                            <span className="wrap-break-word">
                                                               {planningItem.free_minutes} min
                                                               disponíveis
                                                             </span>
-                                                            <span className="break-words">
+                                                            <span className="wrap-break-word">
                                                               {planningItem.remaining_minutes} min
                                                               ainda sobram
                                                             </span>
-                                                            <span className="break-words">
+                                                            <span className="wrap-break-word">
                                                               Ainda cabem aprox.{" "}
                                                               {
                                                                 planningItem.additional_match_capacity
                                                               }{" "}
                                                               jogo(s)
                                                             </span>
-                                                            <span className="break-words">
+                                                            <span className="wrap-break-word">
                                                               {planningItem.has_playable_window
                                                                 ? "Data compatível com a modalidade"
                                                                 : "Data incompatível com a modalidade"}
@@ -14822,7 +14822,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                       >
                                                         <div className="flex flex-col items-center border-b border-border/30 pb-3 text-center">
                                                           <div className="w-full min-w-0">
-                                                            <p className="break-words text-sm font-bold">
+                                                            <p className="wrap-break-word text-sm font-bold">
                                                               {court.court_name}
                                                             </p>
                                                             <p className="text-[11px] text-muted-foreground">
@@ -14935,7 +14935,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                             tone={
                                                                               AppBadgeTone.SILVER
                                                                             }
-                                                                            className="max-w-full whitespace-normal break-words border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                                            className="max-w-full whitespace-normal wrap-break-word border-slate-300 bg-slate-100 px-1.5 py-0.5 text-center text-[10px] leading-tight text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                                                           >
                                                                             Jogo{" "}
                                                                             {displayedMatchNumber ??
@@ -14945,7 +14945,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                             tone={
                                                                               AppBadgeTone.AMBER
                                                                             }
-                                                                            className="max-w-full whitespace-normal break-words border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                                                                            className="max-w-full whitespace-normal wrap-break-word border-amber-300 bg-amber-100 px-1.5 py-0.5 text-center text-[9px] leading-tight text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
                                                                           >
                                                                             Programação exata
                                                                           </AppBadge>
@@ -14956,7 +14956,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                                   entry.naipe
                                                                                 ]
                                                                               }
-                                                                              className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
+                                                                              className="max-w-full whitespace-normal wrap-break-word px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                             >
                                                                               {
                                                                                 MATCH_NAIPE_LABELS[
@@ -14966,7 +14966,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                             </AppBadge>
                                                                           ) : null}
                                                                           {phaseLabel ? (
-                                                                            <span className="max-w-full whitespace-normal break-words rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-[10px] leading-tight text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                                                                            <span className="max-w-full whitespace-normal wrap-break-word rounded-full border border-border/40 bg-background/60 px-1.5 py-0.5 text-center text-[10px] leading-tight text-foreground/90 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                                                                               {phaseLabel}
                                                                             </span>
                                                                           ) : null}
@@ -14977,7 +14977,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                                   entry.division
                                                                                 ]
                                                                               }
-                                                                              className="max-w-full whitespace-normal break-words px-1.5 py-0.5 text-center text-[10px] leading-tight"
+                                                                              className="max-w-full whitespace-normal wrap-break-word px-1.5 py-0.5 text-center text-[10px] leading-tight"
                                                                             >
                                                                               {
                                                                                 TEAM_DIVISION_LABELS[
@@ -14986,7 +14986,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                               }
                                                                             </AppBadge>
                                                                           ) : null}
-                                                                          <p className="mt-1 w-full whitespace-normal break-words text-sm font-semibold leading-tight">
+                                                                          <p className="mt-1 w-full whitespace-normal wrap-break-word text-sm font-semibold leading-tight">
                                                                             {matchTeamsLabel ??
                                                                               entry.sport_name ??
                                                                               "Jogo"}
@@ -14994,13 +14994,13 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                                                                           {matchTeamsLabel &&
                                                                           entry.sport_name ? (
-                                                                            <p className="w-full whitespace-normal break-words text-[10px] text-muted-foreground">
+                                                                            <p className="w-full whitespace-normal wrap-break-word text-[10px] text-muted-foreground">
                                                                               {entry.sport_name}
                                                                             </p>
                                                                           ) : null}
 
                                                                           {entry.reason ? (
-                                                                            <p className="mt-1 w-full whitespace-normal break-words text-[10px] text-muted-foreground">
+                                                                            <p className="mt-1 w-full whitespace-normal wrap-break-word text-[10px] text-muted-foreground">
                                                                               {resolveOperationalPreviewMatchReason(
                                                                                 {
                                                                                   reason:
@@ -15066,12 +15066,12 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                         </p>
                                                                       ) : (
                                                                         <div className="w-full min-w-0">
-                                                                          <p className="whitespace-normal break-words text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                          <p className="whitespace-normal wrap-break-word text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                                             {resolveOperationalPreviewEntryTypeLabel(
                                                                               entry,
                                                                             )}
                                                                           </p>
-                                                                          <p className="mt-1 whitespace-normal break-words text-sm font-semibold">
+                                                                          <p className="mt-1 whitespace-normal wrap-break-word text-sm font-semibold">
                                                                             {entry.sport_name ??
                                                                               "Sessão individual"}
                                                                           </p>
@@ -15079,7 +15079,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                       )}
 
                                                                       <div className="flex flex-col items-center">
-                                                                        <p className="whitespace-normal break-words text-sm font-semibold">
+                                                                        <p className="whitespace-normal wrap-break-word text-sm font-semibold">
                                                                           {entry.start_time} -{" "}
                                                                           {entry.end_time}
                                                                         </p>
@@ -15097,7 +15097,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                                                           (matchDetailPart) => (
                                                                             <span
                                                                               key={matchDetailPart}
-                                                                              className="whitespace-normal break-words"
+                                                                              className="whitespace-normal wrap-break-word"
                                                                             >
                                                                               {matchDetailPart}
                                                                             </span>
@@ -15152,7 +15152,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           }
         }}
       >
-        <DialogContent className="max-h-[88vh] w-[960px] max-w-[95vw] overflow-y-auto">
+        <DialogContent className="max-h-[88vh] w-240 max-w-[95vw] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Adicionar local do catálogo</DialogTitle>
             <DialogDescription>
@@ -15239,7 +15239,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           }
         }}
       >
-        <DialogContent className="max-h-[88vh] w-[1120px] max-w-[95vw] overflow-y-auto">
+        <DialogContent className="max-h-[88vh] w-280 max-w-[95vw] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {isEditingLocationTemplate ? "Editar local" : "Cadastrar local"}
@@ -15379,7 +15379,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
 
                 <button
                   type="button"
-                  className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-dashed border-destructive/35 bg-destructive/10 p-4 text-center text-destructive transition hover:border-destructive/55 hover:bg-destructive/15"
+                  className="flex min-h-60 flex-col items-center justify-center rounded-xl border border-dashed border-destructive/35 bg-destructive/10 p-4 text-center text-destructive transition hover:border-destructive/55 hover:bg-destructive/15"
                   onClick={handleAddLocationTemplateModalCourt}
                 >
                   <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-destructive/10">
@@ -15421,7 +15421,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
           }
         }}
       >
-        <DialogContent className="w-[460px] max-w-[92vw]">
+        <DialogContent className="w-115 max-w-[92vw]">
           <DialogHeader>
             <DialogTitle>Apagar local permanentemente</DialogTitle>
             <DialogDescription>

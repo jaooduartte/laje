@@ -4319,7 +4319,7 @@ export function AdminMatchControl({
                             !hasCurrentSetScore ||
                             hasReachedInterlajeVolleyballSetLimit
                           }
-                          className="!bg-amber-500 !text-white hover:!bg-amber-400"
+                          className="bg-amber-500! text-white! hover:bg-amber-400!"
                         >
                           {isMatchCompletionLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
@@ -4426,7 +4426,7 @@ export function AdminMatchControl({
                         ) : null}
 
                         {matchRepresentation ? (
-                          <p className="break-words text-xs text-muted-foreground">
+                          <p className="wrap-break-word text-xs text-muted-foreground">
                             Representação: {matchRepresentation}
                           </p>
                         ) : null}
