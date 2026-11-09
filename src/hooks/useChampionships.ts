@@ -78,7 +78,7 @@ export function useChampionships({ realtimeEnabled = true }: { realtimeEnabled?:
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [realtimeEnabled]);
 

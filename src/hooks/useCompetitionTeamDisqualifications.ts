@@ -132,7 +132,7 @@ export function useCompetitionTeamDisqualifications({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetch, realtimeEnabled, resolvedSeasonYears]);
 

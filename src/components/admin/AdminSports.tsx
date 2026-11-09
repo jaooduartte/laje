@@ -86,7 +86,7 @@ function normalizePositiveIntegerDraftValue(value: string): number | null {
     return null;
   }
 
-  const parsedValue = parseInt(trimmedValue, 10);
+  const parsedValue = Number.parseInt(trimmedValue, 10);
 
   if (Number.isNaN(parsedValue) || parsedValue <= 0) {
     return null;

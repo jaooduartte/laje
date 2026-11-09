@@ -632,7 +632,7 @@ export function AdminChampionshipSchedule({
   }, [bracketEditionId]);
 
   useEffect(() => {
-    loadSchedules();
+    void loadSchedules();
   }, [loadSchedules]);
 
   async function requestReconfiguration(request: ChampionshipBracketReconfigurationRequest) {

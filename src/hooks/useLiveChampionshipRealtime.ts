@@ -229,15 +229,15 @@ export function useLiveChampionshipRealtime({
         scheduledRefetchTimeout = null;
 
         if (refreshLiveMatches) {
-          callbacksRef.current.onLiveMatchesChange();
+          void callbacksRef.current.onLiveMatchesChange();
         }
 
         if (refreshUpcomingMatches) {
-          callbacksRef.current.onUpcomingMatchesChange();
+          void callbacksRef.current.onUpcomingMatchesChange();
         }
 
         if (refreshBracket) {
-          callbacksRef.current.onBracketChange();
+          void callbacksRef.current.onBracketChange();
         }
       }, LIVE_CHAMPIONSHIP_REALTIME_DEBOUNCE_MS);
     };
@@ -304,7 +304,7 @@ export function useLiveChampionshipRealtime({
         clearTimeout(scheduledRefetchTimeout);
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, seasonYear]);
 }

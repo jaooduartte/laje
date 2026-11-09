@@ -284,7 +284,7 @@ export function useChampionshipBracket({
         clearTimeout(scheduledRefetchTimeoutRef.current);
         scheduledRefetchTimeoutRef.current = null;
       }
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchBracket, realtimeEnabled, seasonYear]);
 

@@ -9951,9 +9951,9 @@ export function AdminChampionshipBracketPage({
                                     return;
                                   }
 
-                                  const parsedValue = parseInt(nextRawValue, 10);
+                                  const parsedValue = Number.parseInt(nextRawValue, 10);
 
-                                  if (isNaN(parsedValue)) {
+                                  if (Number.isNaN(parsedValue)) {
                                     return;
                                   }
 
@@ -9983,12 +9983,12 @@ export function AdminChampionshipBracketPage({
                                     return;
                                   }
 
-                                  const parsedValue = parseInt(rawValue, 10);
+                                  const parsedValue = Number.parseInt(rawValue, 10);
 
                                   setGroupCountInputByCompetitionKey((previousInputs) => ({
                                     ...previousInputs,
                                     [competitionKey]: String(
-                                      isNaN(parsedValue)
+                                      Number.isNaN(parsedValue)
                                         ? competitionConfig.groups_count
                                         : parsedValue,
                                     ),

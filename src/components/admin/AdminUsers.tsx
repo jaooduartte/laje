@@ -489,7 +489,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
   }, []);
 
   useEffect(() => {
-    fetchAdminData();
+    void fetchAdminData();
   }, [fetchAdminData]);
 
   useEffect(() => {
@@ -871,7 +871,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
 
       setSavingEditedUserId(null);
       toast.success("Alterações salvas com sucesso.");
-      fetchAdminData();
+      void fetchAdminData();
     } catch (error) {
       setSavingEditedUserId(null);
       toast.error(
@@ -912,7 +912,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
     );
 
-    fetchAdminData();
+    void fetchAdminData();
   };
 
   const executeDeleteUsers = async (targetUserIds: string[]) => {
@@ -945,7 +945,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       currentSelectedUserIds.filter((selectedUserId) => !targetUserIds.includes(selectedUserId)),
     );
 
-    fetchAdminData();
+    void fetchAdminData();
   };
 
   const handleOpenResetUsersPasswordSetupConfirmation = (targetUserIds: string[]) => {
@@ -1059,7 +1059,7 @@ export function AdminUsers({ canManageUsers = true }: Props) {
       setNewUserName("");
       setNewUserLoginIdentifier("");
       setNewUserAccessValue(profiles[0]?.profile_id ?? "");
-      fetchAdminData();
+      void fetchAdminData();
     } catch (error) {
       setCreatingUser(false);
       toast.error(error instanceof Error ? error.message : "Não foi possível criar o usuário.");

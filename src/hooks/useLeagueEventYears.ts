@@ -79,7 +79,7 @@ export function useLeagueEventYears() {
   }, []);
 
   useEffect(() => {
-    fetchYears();
+    void fetchYears();
   }, [fetchYears]);
 
   return {

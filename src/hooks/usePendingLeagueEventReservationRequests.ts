@@ -31,7 +31,7 @@ export function usePendingLeagueEventReservationRequests() {
   });
 
   useEffect(() => {
-    fetchCount();
+    void fetchCount();
 
     if (!isSupabaseBackendEnabled()) {
       return;
@@ -43,13 +43,13 @@ export function usePendingLeagueEventReservationRequests() {
         "postgres_changes",
         { event: "*", schema: "public", table: "league_event_reservation_requests" },
         () => {
-          fetchCount();
+          void fetchCount();
         },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [fetchCount]);
 

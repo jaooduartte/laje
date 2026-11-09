@@ -1379,7 +1379,7 @@ export function AdminMatchControl({
 
     let isActive = true;
 
-    getBracketCourtSports(bracketEditionId).then(({ data, error }) => {
+    void getBracketCourtSports(bracketEditionId).then(({ data, error }) => {
       if (isActive && !error) {
         setBracketCourtSportsDays(data);
       }
@@ -2181,7 +2181,7 @@ export function AdminMatchControl({
     }));
     handleCancelEditingRecordedSet(match.id);
     toast.success(`Set ${setNumber} removido.`);
-    onRefetch();
+    void onRefetch();
   };
 
   const handleUpdateEditingRecordedSetScore = (matchId: string, side: MatchSide, value: string) => {
@@ -2318,7 +2318,7 @@ export function AdminMatchControl({
     }));
     handleCancelEditingRecordedSet(match.id);
     toast.success(`Set ${editingSetDraft.setNumber} atualizado.`);
-    onRefetch();
+    void onRefetch();
   };
 
   const setMatchCompletionLoading = (matchId: string, isLoading: boolean) => {
@@ -2468,7 +2468,7 @@ export function AdminMatchControl({
     setShowReturnToScheduledConfirmDialog(false);
     setPendingReturnToScheduledMatch(null);
     toast.success("Jogo voltou ao agendamento.");
-    onRefetch();
+    void onRefetch();
     onRefetchChampionshipBracket();
   };
 
@@ -2529,7 +2529,7 @@ export function AdminMatchControl({
     }
 
     toast.success("Jogo iniciado!");
-    onRefetch();
+    void onRefetch();
     onRefetchChampionshipBracket();
   };
 
@@ -3929,7 +3929,7 @@ export function AdminMatchControl({
                               return;
                             }
 
-                            handleSetLive(match.id);
+                            void handleSetLive(match.id);
                           }}
                           disabled={
                             !canManageScoreboard ||

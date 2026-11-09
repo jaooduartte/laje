@@ -242,7 +242,7 @@ export function useStandings({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, division, enabled, fetchStandings, naipe, realtimeEnabled, seasonYear]);
 

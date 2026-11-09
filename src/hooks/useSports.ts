@@ -121,7 +121,7 @@ export function useSports({
       return;
     }
 
-    fetchSports();
+    void fetchSports();
 
     if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
@@ -130,19 +130,19 @@ export function useSports({
     const channel = supabase
       .channel(`sports-realtime-${championshipId ?? "all"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "sports" }, () => {
-        fetchSports();
+        void fetchSports();
       })
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "championship_sports" },
         () => {
-          fetchSports();
+          void fetchSports();
         },
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchSports, realtimeEnabled]);
 

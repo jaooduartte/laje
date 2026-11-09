@@ -289,7 +289,7 @@ export function useChampionshipYellowCardDiscipline({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetch, realtimeEnabled, seasonYear]);
 

@@ -36,7 +36,7 @@ export function useHomeDashboardMetrics(
       return;
     }
 
-    loadMetrics();
+    void loadMetrics();
   }, [enabled, loadMetrics]);
 
   return {

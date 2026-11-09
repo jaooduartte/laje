@@ -151,7 +151,7 @@ export function useOnlineVisitors(
       document.removeEventListener("visibilitychange", handleReconnectSync);
       isChannelSubscribedRef.current = false;
       channelRef.current = null;
-      supabase.removeChannel(realtimeChannel);
+      void supabase.removeChannel(realtimeChannel);
     };
   }, [context, resolveOrCreateVisitorSessionId]);
   // ↑ user?.id removido das dependências: o user_id é lido via ref dentro de trackCurrentPresence
