@@ -553,6 +553,35 @@ describe("AdminStandings", () => {
     expect(screen.getByText(/1,00 de média/)).toBeInTheDocument();
   });
 
+  it("ordena grupos de premiações por naipe", () => {
+    rankingsMock.top_scorers = [
+      ...rankingsMock.top_scorers,
+      {
+        ...rankingsMock.top_scorers[0],
+        player_id: "player-2",
+        player_name: "Artilheira 2",
+        naipe: MatchNaipe.FEMININO,
+      },
+    ];
+
+    render(
+      <AdminStandings
+        selectedChampionship={selectedChampionship}
+        championshipSports={championshipSports}
+        sports={sports}
+        championshipBracketView={championshipBracketView}
+        availableSeasonYears={[2026]}
+      />,
+    );
+
+    const femaleScorer = screen.getByText("Artilheira 2");
+    const maleScorer = screen.getByText("Artilheiro 1");
+
+    expect(
+      femaleScorer.compareDocumentPosition(maleScorer) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it("não oferece o naipe misto sem modalidade mista configurada", () => {
     render(
       <AdminStandings

@@ -78,7 +78,7 @@ function fetchSharedChampionshipBracketView(
   const requestKey = resolveChampionshipBracketRequestKey(championshipId, seasonYear);
   const currentRequest = championshipBracketRequestByKey.get(requestKey);
 
-  if (currentRequest) {
+  if (currentRequest !== undefined) {
     return currentRequest;
   }
 

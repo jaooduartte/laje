@@ -34,7 +34,7 @@ function fetchSharedPendingTieBreaks(
   const requestKey = resolvePendingTieBreaksRequestKey(championshipId, bracketEditionId);
   const currentRequest = pendingTieBreaksRequestByKey.get(requestKey);
 
-  if (currentRequest) {
+  if (currentRequest !== undefined) {
     return currentRequest;
   }
 

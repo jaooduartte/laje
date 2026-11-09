@@ -2193,10 +2193,9 @@ export function AdminStandings({
                                   scorerDrawResult?.winner_player_id === scorer.player_id;
                                 const isInDraw =
                                   !!scorerDrawResult &&
-                                  winnerScorer != null &&
-                                  scorer.goals === winnerScorer.goals &&
+                                  scorer.goals === winnerScorer?.goals &&
                                   scorer.team_advancement_rank ===
-                                    winnerScorer.team_advancement_rank;
+                                    winnerScorer?.team_advancement_rank;
                                 return (
                                   <li
                                     key={`${scorer.player_id}:${scorer.naipe}:${scorer.division ?? "NULL"}`}

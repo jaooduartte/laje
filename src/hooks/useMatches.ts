@@ -1066,7 +1066,7 @@ export function useMatches({
       return;
     }
 
-    fetchMatches({
+    void fetchMatches({
       showLoading: !hasLoadedMatchesRef.current,
       showFetching: hasLoadedMatchesRef.current,
     });
@@ -1177,7 +1177,7 @@ export function useMatches({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchMatches, includeRealtime, seasonYear]);
 

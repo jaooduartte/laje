@@ -39,7 +39,7 @@ export async function fetchChampionshipSeasonSettings(
   const requestKey = resolveChampionshipSeasonSettingsKey(championshipId, seasonYear);
   const currentRequest = championshipSeasonSettingsRequestByKey.get(requestKey);
 
-  if (currentRequest) {
+  if (currentRequest !== undefined) {
     return currentRequest;
   }
 

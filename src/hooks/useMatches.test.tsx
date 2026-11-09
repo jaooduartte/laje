@@ -110,6 +110,26 @@ describe("useMatches", () => {
     expect(listSportsCoreMatchesMock).toHaveBeenCalledTimes(3);
   });
 
+  it("ordena os filtros de status e IDs antes de consultar partidas", async () => {
+    renderHook(() =>
+      useMatches({
+        championshipId: "championship-1",
+        statuses: [MatchStatus.SCHEDULED, MatchStatus.LIVE],
+        matchIds: ["match-2", "match-1"],
+        includeRealtime: false,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(listSportsCoreMatchesMock).toHaveBeenCalled();
+    });
+
+    expect(listSportsCoreMatchesMock.mock.calls[0]?.[0]).toMatchObject({
+      statuses: [MatchStatus.LIVE, MatchStatus.SCHEDULED],
+      matchIds: ["match-1", "match-2"],
+    });
+  });
+
   it("preserva a regra de resultado e usa partidas pré-carregadas sem nova consulta", async () => {
     const matchWithoutResultRule = {
       id: "match-1",

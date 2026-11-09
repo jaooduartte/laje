@@ -180,7 +180,7 @@ function resolveSchedulePlaceholderMatches(props: AdminMatchesProps): Match[] {
   );
 }
 
-export function AdminMatchesWithScheduleFilters(props: AdminMatchesProps) {
+export function AdminMatchesWithScheduleFilters(props: Readonly<AdminMatchesProps>) {
   const schedulePlaceholderMatches = useMemo(
     () => resolveSchedulePlaceholderMatches(props),
     [props],

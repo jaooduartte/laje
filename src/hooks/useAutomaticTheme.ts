@@ -28,7 +28,7 @@ function fetchCurrentUserThemePreference(userId: string) {
     return Promise.resolve(themePreferenceCache.result);
   }
 
-  if (themePreferenceRequest) {
+  if (themePreferenceRequest != null) {
     return themePreferenceRequest;
   }
 
