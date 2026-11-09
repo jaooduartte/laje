@@ -14,10 +14,7 @@ export function useHomeDashboardMetrics(
   const loadMetrics = useCallback(async () => {
     setLoading(true);
 
-    const { data, error } = await fetchHomeDashboardMetrics(
-      seasonYear,
-      championshipCode,
-    );
+    const { data, error } = await fetchHomeDashboardMetrics(seasonYear, championshipCode);
 
     if (error) {
       console.error("Erro ao carregar métricas do dashboard:", error.message);
