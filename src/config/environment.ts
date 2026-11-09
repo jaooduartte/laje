@@ -61,6 +61,7 @@ export const frontendEnvironment = Object.freeze({
   supabasePublishableKey: parsedEnvironment.data.VITE_SUPABASE_PUBLISHABLE_KEY,
 });
 
+// Funções auxiliares para verificar qual backend está habilitado no frontend. É aqui que decidido qual backend será usado para autenticação e gerenciamento de usuários.
 export function isAwsBackendEnabled(): boolean {
   return frontendEnvironment.backendProvider === BACKEND_PROVIDER.AWS;
 }

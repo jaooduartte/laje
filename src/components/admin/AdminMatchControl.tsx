@@ -1889,6 +1889,7 @@ export function AdminMatchControl({
     });
   };
 
+  // Exemplo de função onde verifica se usa a API do laje-api ou o Supabase para atualizar o placar do jogo
   const persistMatchDraft = async (match: Match, matchDraft: MatchControlDraft) => {
     if (!canManageScoreboard) {
       return false;
