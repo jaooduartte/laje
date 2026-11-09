@@ -1,7 +1,7 @@
 function resolveRandomByteValues(): Uint8Array {
   const randomValues = new Uint8Array(16);
 
-  if (typeof globalThis.crypto != "undefined" && typeof globalThis.crypto.getRandomValues == "function") {
+  if (globalThis.crypto !== undefined && typeof globalThis.crypto.getRandomValues == "function") {
     return globalThis.crypto.getRandomValues(randomValues);
   }
 
@@ -13,7 +13,7 @@ function resolveRandomByteValues(): Uint8Array {
 }
 
 export function resolveRandomUuid(): string {
-  if (typeof globalThis.crypto != "undefined" && typeof globalThis.crypto.randomUUID == "function") {
+  if (globalThis.crypto !== undefined && typeof globalThis.crypto.randomUUID == "function") {
     return globalThis.crypto.randomUUID();
   }
 
