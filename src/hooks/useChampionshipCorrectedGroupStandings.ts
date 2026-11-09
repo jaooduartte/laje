@@ -147,7 +147,7 @@ export function useChampionshipCorrectedGroupStandings({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchCorrectedGroupStandings, realtimeEnabled, seasonYear]);
 

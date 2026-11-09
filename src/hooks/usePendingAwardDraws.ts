@@ -193,7 +193,7 @@ export function usePendingAwardDraws({ championshipId, seasonYear }: UsePendingA
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, seasonYear, fetchPendingDraws]);
 

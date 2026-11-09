@@ -229,7 +229,7 @@ export function useInterlajeOverallStandings({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, realtimeEnabled, refetch, seasonYear]);
 

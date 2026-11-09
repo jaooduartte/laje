@@ -95,7 +95,7 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
   });
 
   useEffect(() => {
-    fetchLeagueEvents();
+    void fetchLeagueEvents();
 
     if (!realtimeEnabled || !isSupabaseBackendEnabled()) {
       return;
@@ -104,12 +104,12 @@ export function useLeagueEvents({ monthDate, realtimeEnabled = true }: UseLeague
     const channel = supabase
       .channel(`league-events-realtime-${dateRange.yearKey}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "league_events" }, () => {
-        fetchLeagueEvents();
+        void fetchLeagueEvents();
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [dateRange.yearKey, fetchLeagueEvents, realtimeEnabled]);
 

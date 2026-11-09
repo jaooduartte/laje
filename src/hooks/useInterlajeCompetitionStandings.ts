@@ -151,7 +151,7 @@ export function useInterlajeCompetitionStandings({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, realtimeEnabled, refetch, seasonYear]);
 

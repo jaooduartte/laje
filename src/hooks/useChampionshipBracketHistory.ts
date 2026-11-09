@@ -192,7 +192,7 @@ export function useChampionshipBracketHistory({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, fetchBracketHistory, normalizedSeasonYears, realtimeEnabled]);
 

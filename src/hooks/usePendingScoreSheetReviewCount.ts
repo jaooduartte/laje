@@ -112,7 +112,7 @@ export function usePendingScoreSheetReviewCount({
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, fetchCount, seasonYear]);
 

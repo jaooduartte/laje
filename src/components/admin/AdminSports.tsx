@@ -6,10 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { updateBracketLocationSportPriorities } from "@/domain/championship-brackets/championshipBracket.repository";
 import { resolveInterlajeClassificationPolicySections } from "@/domain/interlaje/interlajeOverallStandings.repository";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
-import {
-  ChampionshipCode,
-  ChampionshipSportResultRule,
-} from "@/lib/enums";
+import { ChampionshipCode, ChampionshipSportResultRule } from "@/lib/enums";
 import { resolveNormalizedSportName } from "@/lib/championship";
 import { resolveChampionshipSportSupportsAwards } from "@/lib/championshipAwards";
 import {
@@ -86,7 +83,7 @@ function normalizePositiveIntegerDraftValue(value: string): number | null {
     return null;
   }
 
-  const parsedValue = parseInt(trimmedValue, 10);
+  const parsedValue = Number.parseInt(trimmedValue, 10);
 
   if (Number.isNaN(parsedValue) || parsedValue <= 0) {
     return null;
@@ -107,44 +104,31 @@ export function AdminSports({
   onSeasonSportRemoved,
   hiddenSportIds = [],
 }: Props) {
-  const [savingSportIdById, setSavingSportIdById] = useState<
-    Record<string, boolean>
+  const [savingSportIdById, setSavingSportIdById] = useState<Record<string, boolean>>({});
+  const [optimisticEstimatedStartTimeBySportId, setOptimisticEstimatedStartTimeBySportId] =
+    useState<Record<string, boolean | undefined>>({});
+  const [optimisticDurationBySportId, setOptimisticDurationBySportId] = useState<
+    Record<string, number | undefined>
   >({});
-  const [
-    optimisticEstimatedStartTimeBySportId,
-    setOptimisticEstimatedStartTimeBySportId,
-  ] = useState<Record<string, boolean | undefined>>({});
-  const [optimisticDurationBySportId, setOptimisticDurationBySportId] =
+  const [optimisticWalkoverWinnerPointsBySportId, setOptimisticWalkoverWinnerPointsBySportId] =
+    useState<Record<string, number | null | undefined>>({});
+  const [optimisticWalkoverWinnerSetCountBySportId, setOptimisticWalkoverWinnerSetCountBySportId] =
     useState<Record<string, number | undefined>>({});
-  const [
-    optimisticWalkoverWinnerPointsBySportId,
-    setOptimisticWalkoverWinnerPointsBySportId,
-  ] = useState<Record<string, number | null | undefined>>({});
-  const [
-    optimisticWalkoverWinnerSetCountBySportId,
-    setOptimisticWalkoverWinnerSetCountBySportId,
-  ] = useState<Record<string, number | undefined>>({});
-  const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<
+  const [walkoverDraftBySportId, setWalkoverDraftBySportId] = useState<Record<string, string>>({});
+  const [walkoverSetCountDraftBySportId, setWalkoverSetCountDraftBySportId] = useState<
     Record<string, string>
   >({});
-  const [walkoverSetCountDraftBySportId, setWalkoverSetCountDraftBySportId] =
-    useState<Record<string, string>>({});
   const [pendingWalkoverConfiguration, setPendingWalkoverConfiguration] =
     useState<PendingWalkoverConfiguration | null>(null);
   const [pendingSeasonSportRemoval, setPendingSeasonSportRemoval] = useState<{
     sport: Sport;
     preview: SeasonSportRemovalPreview;
   } | null>(null);
-  const [seasonSportRemovalConfirmation, setSeasonSportRemovalConfirmation] =
-    useState("");
+  const [seasonSportRemovalConfirmation, setSeasonSportRemovalConfirmation] = useState("");
   const [isRemovingSeasonSport, setIsRemovingSeasonSport] = useState(false);
-  const [durationDraftBySportId, setDurationDraftBySportId] = useState<
-    Record<string, string>
-  >({});
-  const [
-    optimisticAwardsIncludeKnockoutBySportId,
-    setOptimisticAwardsIncludeKnockoutBySportId,
-  ] = useState<Record<string, boolean | undefined>>({});
+  const [durationDraftBySportId, setDurationDraftBySportId] = useState<Record<string, string>>({});
+  const [optimisticAwardsIncludeKnockoutBySportId, setOptimisticAwardsIncludeKnockoutBySportId] =
+    useState<Record<string, boolean | undefined>>({});
   const [
     optimisticSupportsIndividualAwardsBySportId,
     setOptimisticSupportsIndividualAwardsBySportId,
@@ -172,9 +156,7 @@ export function AdminSports({
   }, [championshipSports]);
 
   const championshipPlatformSportRules = useMemo(() => {
-    return (
-      PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE[selectedChampionship.code] ?? []
-    );
+    return PLATFORM_SPORT_RULES_BY_CHAMPIONSHIP_CODE[selectedChampionship.code] ?? [];
   }, [selectedChampionship.code]);
 
   const championshipNameByCode: Record<ChampionshipCode, string> = {
@@ -187,81 +169,65 @@ export function AdminSports({
     const nextOptimisticEstimatedStartTimeBySportId = championshipSports.reduce<
       Record<string, boolean | undefined>
     >((carry, championshipSport) => {
-      carry[championshipSport.sport_id] =
-        championshipSport.show_estimated_start_time_on_cards;
+      carry[championshipSport.sport_id] = championshipSport.show_estimated_start_time_on_cards;
       return carry;
     }, {});
 
-    setOptimisticEstimatedStartTimeBySportId(
-      nextOptimisticEstimatedStartTimeBySportId,
-    );
+    setOptimisticEstimatedStartTimeBySportId(nextOptimisticEstimatedStartTimeBySportId);
 
-    const nextWalkoverDraftBySportId = championshipSports.reduce<
-      Record<string, string>
-    >((carry, championshipSport) => {
-      carry[championshipSport.sport_id] =
-        championshipSport.walkover_winner_points != null
-          ? String(championshipSport.walkover_winner_points)
-          : "";
-      return carry;
-    }, {});
-
-    setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
-
-    const nextWalkoverSetCountDraftBySportId = championshipSports.reduce<
-      Record<string, string>
-    >((carry, championshipSport) => {
-      carry[championshipSport.sport_id] = String(
-        championshipSport.walkover_winner_set_count ?? 1,
-      );
-      return carry;
-    }, {});
-
-    setWalkoverSetCountDraftBySportId(nextWalkoverSetCountDraftBySportId);
-
-    const nextOptimisticWalkoverWinnerPointsBySportId =
-      championshipSports.reduce<Record<string, number | null | undefined>>(
-        (carry, championshipSport) => {
-          carry[championshipSport.sport_id] =
-            championshipSport.walkover_winner_points ?? null;
-          return carry;
-        },
-        {},
-      );
-
-    setOptimisticWalkoverWinnerPointsBySportId(
-      nextOptimisticWalkoverWinnerPointsBySportId,
-    );
-
-    const nextOptimisticWalkoverWinnerSetCountBySportId =
-      championshipSports.reduce<Record<string, number | undefined>>(
-        (carry, championshipSport) => {
-          carry[championshipSport.sport_id] =
-            championshipSport.walkover_winner_set_count ?? 1;
-          return carry;
-        },
-        {},
-      );
-
-    setOptimisticWalkoverWinnerSetCountBySportId(
-      nextOptimisticWalkoverWinnerSetCountBySportId,
-    );
-
-    const nextDurationDraftBySportId = sports.reduce<Record<string, string>>(
-      (carry, sport) => {
-        carry[sport.id] =
-          sport.default_match_duration_minutes != null
-            ? String(sport.default_match_duration_minutes)
+    const nextWalkoverDraftBySportId = championshipSports.reduce<Record<string, string>>(
+      (carry, championshipSport) => {
+        carry[championshipSport.sport_id] =
+          championshipSport.walkover_winner_points != null
+            ? String(championshipSport.walkover_winner_points)
             : "";
         return carry;
       },
       {},
     );
 
+    setWalkoverDraftBySportId(nextWalkoverDraftBySportId);
+
+    const nextWalkoverSetCountDraftBySportId = championshipSports.reduce<Record<string, string>>(
+      (carry, championshipSport) => {
+        carry[championshipSport.sport_id] = String(
+          championshipSport.walkover_winner_set_count ?? 1,
+        );
+        return carry;
+      },
+      {},
+    );
+
+    setWalkoverSetCountDraftBySportId(nextWalkoverSetCountDraftBySportId);
+
+    const nextOptimisticWalkoverWinnerPointsBySportId = championshipSports.reduce<
+      Record<string, number | null | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.walkover_winner_points ?? null;
+      return carry;
+    }, {});
+
+    setOptimisticWalkoverWinnerPointsBySportId(nextOptimisticWalkoverWinnerPointsBySportId);
+
+    const nextOptimisticWalkoverWinnerSetCountBySportId = championshipSports.reduce<
+      Record<string, number | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.walkover_winner_set_count ?? 1;
+      return carry;
+    }, {});
+
+    setOptimisticWalkoverWinnerSetCountBySportId(nextOptimisticWalkoverWinnerSetCountBySportId);
+
+    const nextDurationDraftBySportId = sports.reduce<Record<string, string>>((carry, sport) => {
+      carry[sport.id] =
+        sport.default_match_duration_minutes != null
+          ? String(sport.default_match_duration_minutes)
+          : "";
+      return carry;
+    }, {});
+
     championshipSports.forEach((championshipSport) => {
-      if (
-        (nextDurationDraftBySportId[championshipSport.sport_id] ?? "") !== ""
-      ) {
+      if ((nextDurationDraftBySportId[championshipSport.sport_id] ?? "") !== "") {
         return;
       }
 
@@ -272,12 +238,13 @@ export function AdminSports({
 
     setDurationDraftBySportId(nextDurationDraftBySportId);
 
-    const nextOptimisticDurationBySportId = sports.reduce<
-      Record<string, number | undefined>
-    >((carry, sport) => {
-      carry[sport.id] = sport.default_match_duration_minutes ?? undefined;
-      return carry;
-    }, {});
+    const nextOptimisticDurationBySportId = sports.reduce<Record<string, number | undefined>>(
+      (carry, sport) => {
+        carry[sport.id] = sport.default_match_duration_minutes ?? undefined;
+        return carry;
+      },
+      {},
+    );
 
     championshipSports.forEach((championshipSport) => {
       if (nextOptimisticDurationBySportId[championshipSport.sport_id] != null) {
@@ -290,33 +257,23 @@ export function AdminSports({
 
     setOptimisticDurationBySportId(nextOptimisticDurationBySportId);
 
-    const nextOptimisticAwardsIncludeKnockoutBySportId =
-      championshipSports.reduce<Record<string, boolean | undefined>>(
-        (carry, championshipSport) => {
-          carry[championshipSport.sport_id] =
-            championshipSport.awards_include_knockout_phase;
-          return carry;
-        },
-        {},
-      );
+    const nextOptimisticAwardsIncludeKnockoutBySportId = championshipSports.reduce<
+      Record<string, boolean | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.awards_include_knockout_phase;
+      return carry;
+    }, {});
 
-    setOptimisticAwardsIncludeKnockoutBySportId(
-      nextOptimisticAwardsIncludeKnockoutBySportId,
-    );
+    setOptimisticAwardsIncludeKnockoutBySportId(nextOptimisticAwardsIncludeKnockoutBySportId);
 
-    const nextOptimisticSupportsIndividualAwardsBySportId =
-      championshipSports.reduce<Record<string, boolean | undefined>>(
-        (carry, championshipSport) => {
-          carry[championshipSport.sport_id] =
-            championshipSport.supports_individual_awards;
-          return carry;
-        },
-        {},
-      );
+    const nextOptimisticSupportsIndividualAwardsBySportId = championshipSports.reduce<
+      Record<string, boolean | undefined>
+    >((carry, championshipSport) => {
+      carry[championshipSport.sport_id] = championshipSport.supports_individual_awards;
+      return carry;
+    }, {});
 
-    setOptimisticSupportsIndividualAwardsBySportId(
-      nextOptimisticSupportsIndividualAwardsBySportId,
-    );
+    setOptimisticSupportsIndividualAwardsBySportId(nextOptimisticSupportsIndividualAwardsBySportId);
   }, [championshipSports, sports]);
 
   const handleToggleEstimatedStartTimeOnCards = async (
@@ -332,12 +289,10 @@ export function AdminSports({
       [championshipSport.id]: true,
     }));
 
-    setOptimisticEstimatedStartTimeBySportId(
-      (currentOptimisticEstimatedStartTimeBySportId) => ({
-        ...currentOptimisticEstimatedStartTimeBySportId,
-        [championshipSport.sport_id]: shouldShowEstimatedStartTimeOnCards,
-      }),
-    );
+    setOptimisticEstimatedStartTimeBySportId((currentOptimisticEstimatedStartTimeBySportId) => ({
+      ...currentOptimisticEstimatedStartTimeBySportId,
+      [championshipSport.sport_id]: shouldShowEstimatedStartTimeOnCards,
+    }));
 
     const { error } = await supabase
       .from("championship_sports")
@@ -352,17 +307,11 @@ export function AdminSports({
     }));
 
     if (error) {
-      setOptimisticEstimatedStartTimeBySportId(
-        (currentOptimisticEstimatedStartTimeBySportId) => ({
-          ...currentOptimisticEstimatedStartTimeBySportId,
-          [championshipSport.sport_id]:
-            championshipSport.show_estimated_start_time_on_cards,
-        }),
-      );
-      toast.error(
-        error.message ||
-          "Não foi possível salvar a configuração de horário estimado.",
-      );
+      setOptimisticEstimatedStartTimeBySportId((currentOptimisticEstimatedStartTimeBySportId) => ({
+        ...currentOptimisticEstimatedStartTimeBySportId,
+        [championshipSport.sport_id]: championshipSport.show_estimated_start_time_on_cards,
+      }));
+      toast.error(error.message || "Não foi possível salvar a configuração de horário estimado.");
       return;
     }
 
@@ -379,13 +328,10 @@ export function AdminSports({
     }
 
     const draftValue = walkoverDraftBySportId[sportId] ?? "";
-    const parsedValue =
-      draftValue.trim() === "" ? null : parseInt(draftValue, 10);
+    const parsedValue = draftValue.trim() === "" ? null : Number.parseInt(draftValue, 10);
 
     if (parsedValue !== null && (isNaN(parsedValue) || parsedValue <= 0)) {
-      toast.error(
-        "Informe um número inteiro positivo ou deixe vazio para desabilitar o W.O.",
-      );
+      toast.error("Informe um número inteiro positivo ou deixe vazio para desabilitar o W.O.");
       return;
     }
 
@@ -406,38 +352,27 @@ export function AdminSports({
     });
   };
 
-  const handleConfirmWalkoverConfiguration = async (
-    shouldUpdateFinishedWalkovers: boolean,
-  ) => {
+  const handleConfirmWalkoverConfiguration = async (shouldUpdateFinishedWalkovers: boolean) => {
     const configuration = pendingWalkoverConfiguration;
 
     if (!configuration) {
       return;
     }
 
-    const {
-      championshipSport,
-      sportId,
-      isSetRule,
-      winnerPoints,
-      winnerSetCount,
-    } = configuration;
+    const { championshipSport, sportId, isSetRule, winnerPoints, winnerSetCount } = configuration;
 
     setSavingSportIdById((current) => ({
       ...current,
       [championshipSport.id]: true,
     }));
 
-    const { data, error } = await supabase.rpc(
-      "save_championship_sport_walkover_configuration",
-      {
-        _championship_sport_id: championshipSport.id,
-        _season_year: selectedChampionship.current_season_year,
-        _walkover_winner_points: winnerPoints,
-        _walkover_winner_set_count: isSetRule ? winnerSetCount : null,
-        _update_finished_walkovers: shouldUpdateFinishedWalkovers,
-      },
-    );
+    const { data, error } = await supabase.rpc("save_championship_sport_walkover_configuration", {
+      _championship_sport_id: championshipSport.id,
+      _season_year: selectedChampionship.current_season_year,
+      _walkover_winner_points: winnerPoints,
+      _walkover_winner_set_count: isSetRule ? winnerSetCount : null,
+      _update_finished_walkovers: shouldUpdateFinishedWalkovers,
+    });
 
     setSavingSportIdById((current) => ({
       ...current,
@@ -445,9 +380,7 @@ export function AdminSports({
     }));
 
     if (error) {
-      toast.error(
-        error.message || "Não foi possível salvar a configuração de W.O.",
-      );
+      toast.error(error.message || "Não foi possível salvar a configuração de W.O.");
       return;
     }
 
@@ -474,9 +407,7 @@ export function AdminSports({
 
     await Promise.all([
       onRefetchSports?.(),
-      shouldUpdateFinishedWalkovers
-        ? onRefetchMatches?.({ showFetching: true })
-        : undefined,
+      shouldUpdateFinishedWalkovers ? onRefetchMatches?.({ showFetching: true }) : undefined,
     ]);
 
     const updatedMatchesCount =
@@ -508,11 +439,7 @@ export function AdminSports({
     const parsedValue = parseInt(draftValue, 10);
     const savingKey = championshipSport?.id ?? sport.id;
 
-    if (
-      draftValue.trim() == "" ||
-      Number.isNaN(parsedValue) ||
-      parsedValue <= 0
-    ) {
+    if (draftValue.trim() == "" || Number.isNaN(parsedValue) || parsedValue <= 0) {
       toast.error("Informe uma duração válida em minutos para a modalidade.");
       return;
     }
@@ -526,16 +453,15 @@ export function AdminSports({
 
     if (updateError) {
       setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
-      toast.error(
-        updateError.message ||
-          "Não foi possível salvar a duração da modalidade.",
-      );
+      toast.error(updateError.message || "Não foi possível salvar a duração da modalidade.");
       return;
     }
 
     if (bracketEditionId && championshipSport) {
-      const { error: redistributeError } =
-        await updateBracketLocationSportPriorities(bracketEditionId, []);
+      const { error: redistributeError } = await updateBracketLocationSportPriorities(
+        bracketEditionId,
+        [],
+      );
 
       if (redistributeError) {
         setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
@@ -556,10 +482,7 @@ export function AdminSports({
       [sport.id]: String(parsedValue),
     }));
 
-    await Promise.all([
-      onRefetchSports?.(),
-      onRefetchMatches?.({ showFetching: true }),
-    ]);
+    await Promise.all([onRefetchSports?.(), onRefetchMatches?.({ showFetching: true })]);
 
     setSavingSportIdById((current) => ({ ...current, [savingKey]: false }));
 
@@ -601,13 +524,9 @@ export function AdminSports({
     if (error) {
       setOptimisticSupportsIndividualAwardsBySportId((current) => ({
         ...current,
-        [championshipSport.sport_id]:
-          championshipSport.supports_individual_awards,
+        [championshipSport.sport_id]: championshipSport.supports_individual_awards,
       }));
-      toast.error(
-        error.message ||
-          "Não foi possível salvar a configuração de premiações.",
-      );
+      toast.error(error.message || "Não foi possível salvar a configuração de premiações.");
       return;
     }
 
@@ -645,12 +564,9 @@ export function AdminSports({
     if (error) {
       setOptimisticAwardsIncludeKnockoutBySportId((current) => ({
         ...current,
-        [championshipSport.sport_id]:
-          championshipSport.awards_include_knockout_phase,
+        [championshipSport.sport_id]: championshipSport.awards_include_knockout_phase,
       }));
-      toast.error(
-        error.message || "Não foi possível salvar a configuração de prêmios.",
-      );
+      toast.error(error.message || "Não foi possível salvar a configuração de prêmios.");
       return;
     }
 
@@ -687,15 +603,12 @@ export function AdminSports({
 
     setIsRemovingSeasonSport(true);
 
-    const { error } = await supabaseRemovalClient.rpc(
-      "remove_championship_season_sport",
-      {
-        _championship_id: selectedChampionship.id,
-        _season_year: selectedChampionship.current_season_year,
-        _sport_id: pendingSeasonSportRemoval.sport.id,
-        _confirmation_name: seasonSportRemovalConfirmation,
-      },
-    );
+    const { error } = await supabaseRemovalClient.rpc("remove_championship_season_sport", {
+      _championship_id: selectedChampionship.id,
+      _season_year: selectedChampionship.current_season_year,
+      _sport_id: pendingSeasonSportRemoval.sport.id,
+      _confirmation_name: seasonSportRemovalConfirmation,
+    });
 
     setIsRemovingSeasonSport(false);
 
@@ -715,15 +628,11 @@ export function AdminSports({
   };
 
   const pendingWalkoverSportName = pendingWalkoverConfiguration
-    ? sports.find(
-        (sport) => sport.id == pendingWalkoverConfiguration.sportId,
-      )?.name
+    ? sports.find((sport) => sport.id == pendingWalkoverConfiguration.sportId)?.name
     : null;
   const isSavingPendingWalkoverConfiguration =
     pendingWalkoverConfiguration != null &&
-    savingSportIdById[
-      pendingWalkoverConfiguration.championshipSport.id
-    ] == true;
+    Boolean(savingSportIdById[pendingWalkoverConfiguration.championshipSport.id]);
 
   if (isLoading) {
     return (
@@ -744,9 +653,7 @@ export function AdminSports({
     return (
       <div className="space-y-6">
         <div className="enter-section space-y-3 glass-card p-4">
-          <h2 className="text-2xl font-display font-bold">
-            Modalidades oficiais
-          </h2>
+          <h2 className="text-2xl font-display font-bold">Modalidades oficiais</h2>
           <p className="text-sm text-muted-foreground">
             Não há regras oficiais configuradas para este campeonato.
           </p>
@@ -772,7 +679,8 @@ export function AdminSports({
               Remover {pendingSeasonSportRemoval?.preview.sport_name} desta temporada?
             </AlertDialogTitle>
             <AlertDialogDescription>
-              A remoção é definitiva apenas para {selectedChampionship.current_season_year}. Dias, locais e quadras compartilhados não serão removidos.
+              A remoção é definitiva apenas para {selectedChampionship.current_season_year}. Dias,
+              locais e quadras compartilhados não serão removidos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {pendingSeasonSportRemoval ? (
@@ -784,11 +692,21 @@ export function AdminSports({
                   ["sessão(ões)", pendingSeasonSportRemoval.preview.individual_sessions_count],
                   ["prova(s)", pendingSeasonSportRemoval.preview.individual_events_count],
                   ["inscrição(ões)", pendingSeasonSportRemoval.preview.individual_entries_count],
-                  ["classificação(ões)", pendingSeasonSportRemoval.preview.standings_count + pendingSeasonSportRemoval.preview.individual_standings_count],
+                  [
+                    "classificação(ões)",
+                    pendingSeasonSportRemoval.preview.standings_count +
+                      pendingSeasonSportRemoval.preview.individual_standings_count,
+                  ],
                   ["chave(s)", pendingSeasonSportRemoval.preview.bracket_competitions_count],
-                  ["atlética(s) participante(s)", pendingSeasonSportRemoval.preview.configured_teams_count],
+                  [
+                    "atlética(s) participante(s)",
+                    pendingSeasonSportRemoval.preview.configured_teams_count,
+                  ],
                   ["atleta(s)", pendingSeasonSportRemoval.preview.athletes_count],
-                  ["desclassificação(ões)", pendingSeasonSportRemoval.preview.disqualifications_count],
+                  [
+                    "desclassificação(ões)",
+                    pendingSeasonSportRemoval.preview.disqualifications_count,
+                  ],
                 ]
                   .filter(([, count]) => Number(count) > 0)
                   .map(([label, count]) => (
@@ -801,7 +719,8 @@ export function AdminSports({
           ) : null}
           {pendingSeasonSportRemoval?.preview.has_live_items ? (
             <p className="text-sm font-medium text-destructive">
-              Há jogo ou sessão ao vivo nesta modalidade. Encerre ou retorne o item ao agendamento antes de remover.
+              Há jogo ou sessão ao vivo nesta modalidade. Encerre ou retorne o item ao agendamento
+              antes de remover.
             </p>
           ) : (
             <label className="space-y-1 text-sm">
@@ -881,12 +800,10 @@ export function AdminSports({
 
       <div className="enter-section space-y-5 glass-card p-4">
         <h2 className="text-2xl font-display font-bold">
-          Modalidades oficiais da{" "}
-          {championshipNameByCode[selectedChampionship.code]}
+          Modalidades oficiais da {championshipNameByCode[selectedChampionship.code]}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Configuração fixa conforme regulamento: naipe, pontuação e critérios
-          de desempate.
+          Configuração fixa conforme regulamento: naipe, pontuação e critérios de desempate.
         </p>
 
         <div className="space-y-2">
@@ -897,36 +814,28 @@ export function AdminSports({
             if (sport && hiddenSportIdsSet.has(sport.id)) {
               return null;
             }
-            const championshipSport = sport
-              ? championshipSportBySportId.get(sport.id)
-              : undefined;
+            const championshipSport = sport ? championshipSportBySportId.get(sport.id) : undefined;
             const supportsAwards = resolveChampionshipSportSupportsAwards(
               selectedChampionship.code,
               platformSportRule.sportName,
             );
 
-            const resolvedNaipeMode =
-              championshipSport?.naipe_mode ?? platformSportRule.naipeMode;
-            const resolvedPointsWin =
-              championshipSport?.points_win ?? platformSportRule.pointsWin;
+            const resolvedNaipeMode = championshipSport?.naipe_mode ?? platformSportRule.naipeMode;
+            const resolvedPointsWin = championshipSport?.points_win ?? platformSportRule.pointsWin;
             const resolvedPointsDraw =
               championshipSport?.points_draw ?? platformSportRule.pointsDraw;
             const resolvedPointsLoss =
               championshipSport?.points_loss ?? platformSportRule.pointsLoss;
             const resolvedSupportsCards =
-              championshipSport?.supports_cards ??
-              platformSportRule.supportsCards;
+              championshipSport?.supports_cards ?? platformSportRule.supportsCards;
             const isInterlajeVolleyball =
               selectedChampionship.code == ChampionshipCode.INTERLAJE &&
-              resolveNormalizedSportName(platformSportRule.sportName) ==
-                "voleibol";
+              resolveNormalizedSportName(platformSportRule.sportName) == "voleibol";
             const resolvedResultRule =
               championshipSport?.result_rule ?? platformSportRule.resultRule;
             const isIndividualSport =
-              resolveNormalizedSportName(platformSportRule.sportName) ==
-                "atletismo" ||
-              resolveNormalizedSportName(platformSportRule.sportName) ==
-                "natacao";
+              resolveNormalizedSportName(platformSportRule.sportName) == "atletismo" ||
+              resolveNormalizedSportName(platformSportRule.sportName) == "natacao";
             const resolvedDefaultMatchDurationMinutes =
               optimisticDurationBySportId[sport?.id ?? ""] ??
               sport?.default_match_duration_minutes ??
@@ -936,22 +845,16 @@ export function AdminSports({
               optimisticEstimatedStartTimeBySportId[sport?.id ?? ""] ??
               championshipSport?.show_estimated_start_time_on_cards ??
               false;
-            const savingKey =
-              championshipSport?.id ?? sport?.id ?? platformSportRule.sportName;
+            const savingKey = championshipSport?.id ?? sport?.id ?? platformSportRule.sportName;
             const isSavingSport = savingSportIdById[savingKey] == true;
-            const draftDurationValue = sport
-              ? (durationDraftBySportId[sport.id] ?? "")
-              : "";
+            const draftDurationValue = sport ? (durationDraftBySportId[sport.id] ?? "") : "";
             const normalizedDraftDurationValue =
               normalizePositiveIntegerDraftValue(draftDurationValue);
             const hasDurationChanges =
               !!sport &&
               normalizedDraftDurationValue != null &&
-              normalizedDraftDurationValue !==
-                resolvedDefaultMatchDurationMinutes;
-            const draftWalkoverValue = sport
-              ? (walkoverDraftBySportId[sport.id] ?? "")
-              : "";
+              normalizedDraftDurationValue !== resolvedDefaultMatchDurationMinutes;
+            const draftWalkoverValue = sport ? (walkoverDraftBySportId[sport.id] ?? "") : "";
             const normalizedDraftWalkoverValue =
               normalizePositiveIntegerDraftValue(draftWalkoverValue);
             const currentWalkoverWinnerPoints =
@@ -961,8 +864,9 @@ export function AdminSports({
             const draftWalkoverSetCountValue = sport
               ? (walkoverSetCountDraftBySportId[sport.id] ?? "")
               : "";
-            const normalizedDraftWalkoverSetCount =
-              normalizePositiveIntegerDraftValue(draftWalkoverSetCountValue);
+            const normalizedDraftWalkoverSetCount = normalizePositiveIntegerDraftValue(
+              draftWalkoverSetCountValue,
+            );
             const currentWalkoverWinnerSetCount =
               optimisticWalkoverWinnerSetCountBySportId[sport?.id ?? ""] ??
               championshipSport?.walkover_winner_set_count ??
@@ -993,14 +897,9 @@ export function AdminSports({
                 : [];
 
             return (
-              <div
-                key={platformSportRule.sportName}
-                className="list-item-card space-y-3 p-4"
-              >
+              <div key={platformSportRule.sportName} className="list-item-card space-y-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-display font-semibold">
-                    {platformSportRule.sportName}
-                  </p>
+                  <p className="font-display font-semibold">{platformSportRule.sportName}</p>
                   {sport && championshipSport ? (
                     <Button
                       type="button"
@@ -1026,9 +925,7 @@ export function AdminSports({
 
                 <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
                   <div className="app-card-muted px-3 py-2">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Tipo de naipe
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Tipo de naipe</p>
                     <p className="font-medium">
                       {CHAMPIONSHIP_SPORT_NAIPE_MODE_LABELS[resolvedNaipeMode]}
                     </p>
@@ -1060,9 +957,7 @@ export function AdminSports({
                     </div>
                   ) : (
                     <div className="app-card-muted px-3 py-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Pontuação
-                      </p>
+                      <p className="text-xs font-medium text-muted-foreground">Pontuação</p>
                       <p className="font-medium">
                         {`V ${resolvedPointsWin} • E ${resolvedPointsDraw} • D ${resolvedPointsLoss}`}
                       </p>
@@ -1070,24 +965,14 @@ export function AdminSports({
                   )}
 
                   <div className="app-card-muted px-3 py-2">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Cartões
-                    </p>
-                    <p className="font-medium">
-                      {resolvedSupportsCards ? "Sim" : "Não"}
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Cartões</p>
+                    <p className="font-medium">{resolvedSupportsCards ? "Sim" : "Não"}</p>
                   </div>
 
                   <div className="app-card-muted px-3 py-2">
-                    <p className="text-xs font-medium text-muted-foreground">
-                      Regra de resultado
-                    </p>
+                    <p className="text-xs font-medium text-muted-foreground">Regra de resultado</p>
                     <p className="font-medium">
-                      {
-                        CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS[
-                          resolvedResultRule
-                        ]
-                      }
+                      {CHAMPIONSHIP_SPORT_RESULT_RULE_LABELS[resolvedResultRule]}
                     </p>
                   </div>
                 </div>
@@ -1104,9 +989,7 @@ export function AdminSports({
                         placeholder="Minutos"
                         className="h-8 w-32 text-sm"
                         disabled={!canManageSports || !sport || isSavingSport}
-                        value={
-                          sport ? (durationDraftBySportId[sport.id] ?? "") : ""
-                        }
+                        value={sport ? (durationDraftBySportId[sport.id] ?? "") : ""}
                         onChange={(e) => {
                           if (!sport) return;
                           setDurationDraftBySportId((current) => ({
@@ -1119,30 +1002,23 @@ export function AdminSports({
                         size="sm"
                         variant="destructive"
                         disabled={
-                          !canManageSports ||
-                          !sport ||
-                          isSavingSport ||
-                          !hasDurationChanges
+                          !canManageSports || !sport || isSavingSport || !hasDurationChanges
                         }
                         onClick={() => {
                           if (!sport) return;
-                          void handleSaveDefaultMatchDuration(
-                            sport,
-                            championshipSport,
-                          );
+                          void handleSaveDefaultMatchDuration(sport, championshipSport);
                         }}
                       >
                         {isSavingSport ? "Salvando…" : "Salvar"}
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Ao salvar, a agenda da edição atual é redistribuída com a
-                      nova duração da modalidade.
+                      Ao salvar, a agenda da edição atual é redistribuída com a nova duração da
+                      modalidade.
                     </p>
                     {!sport ? (
                       <p className="text-xs text-muted-foreground">
-                        A modalidade precisa existir no banco para editar esta
-                        configuração.
+                        A modalidade precisa existir no banco para editar esta configuração.
                       </p>
                     ) : null}
                   </div>
@@ -1183,8 +1059,7 @@ export function AdminSports({
                       {platformSportRule.tieBreakerPriority.map(
                         (tieBreakerPriorityItem, tieBreakerPriorityIndex) => (
                           <li key={tieBreakerPriorityItem}>
-                            {tieBreakerPriorityIndex + 1}.{" "}
-                            {tieBreakerPriorityItem}
+                            {tieBreakerPriorityIndex + 1}. {tieBreakerPriorityItem}
                           </li>
                         ),
                       )}
@@ -1203,8 +1078,7 @@ export function AdminSports({
                         return;
                       }
 
-                      const nextShouldShowEstimatedStartTimeOnCards =
-                        value == "YES";
+                      const nextShouldShowEstimatedStartTimeOnCards = value == "YES";
 
                       if (
                         nextShouldShowEstimatedStartTimeOnCards ==
@@ -1223,22 +1097,14 @@ export function AdminSports({
                     <label className="flex items-center gap-2 text-sm">
                       <RadioGroupItem
                         value="YES"
-                        disabled={
-                          !canManageSports ||
-                          !championshipSport ||
-                          isSavingSport
-                        }
+                        disabled={!canManageSports || !championshipSport || isSavingSport}
                       />
                       Sim
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                       <RadioGroupItem
                         value="NO"
-                        disabled={
-                          !canManageSports ||
-                          !championshipSport ||
-                          isSavingSport
-                        }
+                        disabled={!canManageSports || !championshipSport || isSavingSport}
                       />
                       Não
                     </label>
@@ -1246,15 +1112,13 @@ export function AdminSports({
 
                   {!championshipSport ? (
                     <p className="text-xs text-muted-foreground">
-                      Vincule a modalidade ao campeonato para editar esta
-                      configuração.
+                      Vincule a modalidade ao campeonato para editar esta configuração.
                     </p>
                   ) : null}
 
                   {!canManageSports ? (
                     <p className="text-xs text-muted-foreground">
-                      Perfil em visualização: sem permissão para editar a aba de
-                      modalidades.
+                      Perfil em visualização: sem permissão para editar a aba de modalidades.
                     </p>
                   ) : null}
                 </div>
@@ -1281,14 +1145,8 @@ export function AdminSports({
                           }
                           placeholder="Desabilitado"
                           className="h-8 w-32 text-sm"
-                          disabled={
-                            !canManageSports ||
-                            !championshipSport ||
-                            isSavingSport
-                          }
-                          value={
-                            sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""
-                          }
+                          disabled={!canManageSports || !championshipSport || isSavingSport}
+                          value={sport ? (walkoverDraftBySportId[sport.id] ?? "") : ""}
                           onChange={(e) => {
                             if (!sport) return;
                             setWalkoverDraftBySportId((current) => ({
@@ -1306,16 +1164,8 @@ export function AdminSports({
                             min={1}
                             aria-label="Sets concedidos ao vencedor no W.O."
                             className="h-8 w-32 text-sm"
-                            disabled={
-                              !canManageSports ||
-                              !championshipSport ||
-                              isSavingSport
-                            }
-                            value={
-                              sport
-                                ? (walkoverSetCountDraftBySportId[sport.id] ?? "")
-                                : ""
-                            }
+                            disabled={!canManageSports || !championshipSport || isSavingSport}
+                            value={sport ? (walkoverSetCountDraftBySportId[sport.id] ?? "") : ""}
                             onChange={(e) => {
                               if (!sport) return;
                               setWalkoverSetCountDraftBySportId((current) => ({
@@ -1356,8 +1206,7 @@ export function AdminSports({
                     </p>
                     {!championshipSport ? (
                       <p className="text-xs text-muted-foreground">
-                        Vincule a modalidade ao campeonato para editar esta
-                        configuração.
+                        Vincule a modalidade ao campeonato para editar esta configuração.
                       </p>
                     ) : null}
                   </div>
@@ -1378,39 +1227,25 @@ export function AdminSports({
 
                           const nextValue = value == "YES";
 
-                          if (
-                            nextValue ==
-                            championshipSport.supports_individual_awards
-                          ) {
+                          if (nextValue == championshipSport.supports_individual_awards) {
                             return;
                           }
 
-                          void handleToggleSupportsIndividualAwards(
-                            championshipSport,
-                            nextValue,
-                          );
+                          void handleToggleSupportsIndividualAwards(championshipSport, nextValue);
                         }}
                         className="flex items-center gap-4"
                       >
                         <label className="flex items-center gap-2 text-sm">
                           <RadioGroupItem
                             value="NO"
-                            disabled={
-                              !canManageSports ||
-                              !championshipSport ||
-                              isSavingSport
-                            }
+                            disabled={!canManageSports || !championshipSport || isSavingSport}
                           />
                           Desabilitado
                         </label>
                         <label className="flex items-center gap-2 text-sm">
                           <RadioGroupItem
                             value="YES"
-                            disabled={
-                              !canManageSports ||
-                              !championshipSport ||
-                              isSavingSport
-                            }
+                            disabled={!canManageSports || !championshipSport || isSavingSport}
                           />
                           Habilitado
                         </label>
@@ -1418,15 +1253,13 @@ export function AdminSports({
 
                       {!championshipSport ? (
                         <p className="text-xs text-muted-foreground">
-                          Vincule a modalidade ao campeonato para editar esta
-                          configuração.
+                          Vincule a modalidade ao campeonato para editar esta configuração.
                         </p>
                       ) : null}
 
                       {!canManageSports ? (
                         <p className="text-xs text-muted-foreground">
-                          Perfil em visualização: sem permissão para editar a
-                          aba de modalidades.
+                          Perfil em visualização: sem permissão para editar a aba de modalidades.
                         </p>
                       ) : null}
                     </div>
@@ -1444,39 +1277,25 @@ export function AdminSports({
 
                           const nextValue = value == "YES";
 
-                          if (
-                            nextValue ==
-                            championshipSport.awards_include_knockout_phase
-                          ) {
+                          if (nextValue == championshipSport.awards_include_knockout_phase) {
                             return;
                           }
 
-                          void handleToggleAwardsIncludeKnockout(
-                            championshipSport,
-                            nextValue,
-                          );
+                          void handleToggleAwardsIncludeKnockout(championshipSport, nextValue);
                         }}
                         className="flex items-center gap-4"
                       >
                         <label className="flex items-center gap-2 text-sm">
                           <RadioGroupItem
                             value="NO"
-                            disabled={
-                              !canManageSports ||
-                              !championshipSport ||
-                              isSavingSport
-                            }
+                            disabled={!canManageSports || !championshipSport || isSavingSport}
                           />
                           Somente fase de grupos
                         </label>
                         <label className="flex items-center gap-2 text-sm">
                           <RadioGroupItem
                             value="YES"
-                            disabled={
-                              !canManageSports ||
-                              !championshipSport ||
-                              isSavingSport
-                            }
+                            disabled={!canManageSports || !championshipSport || isSavingSport}
                           />
                           Fase de grupos + Eliminatória
                         </label>
@@ -1484,23 +1303,20 @@ export function AdminSports({
 
                       {!championshipSport ? (
                         <p className="text-xs text-muted-foreground">
-                          Vincule a modalidade ao campeonato para editar esta
-                          configuração.
+                          Vincule a modalidade ao campeonato para editar esta configuração.
                         </p>
                       ) : null}
 
                       {!canManageSports ? (
                         <p className="text-xs text-muted-foreground">
-                          Perfil em visualização: sem permissão para editar a
-                          aba de modalidades.
+                          Perfil em visualização: sem permissão para editar a aba de modalidades.
                         </p>
                       ) : null}
 
                       <p className="text-xs text-muted-foreground">
-                        Com a opção desligada, a apuração considera somente a
-                        fase de grupos. Com a opção ligada, soma fase de grupos
-                        + eliminatória, mas só entram no ranking atléticas e
-                        jogadores de atléticas que disputaram ao menos um jogo
+                        Com a opção desligada, a apuração considera somente a fase de grupos. Com a
+                        opção ligada, soma fase de grupos + eliminatória, mas só entram no ranking
+                        atléticas e jogadores de atléticas que disputaram ao menos um jogo
                         eliminatório válido.
                       </p>
                     </div>
@@ -1511,21 +1327,19 @@ export function AdminSports({
                       </p>
                       <div className="space-y-2 text-sm">
                         <p>
-                          <span className="font-medium">Artilheiro:</span> maior
-                          número de gols, equipe que avançou mais longe no
-                          campeonato e, se o empate persistir, sorteio.
+                          <span className="font-medium">Artilheiro:</span> maior número de gols,
+                          equipe que avançou mais longe no campeonato e, se o empate persistir,
+                          sorteio.
                         </p>
                         <p>
-                          <span className="font-medium">Melhor defesa:</span>{" "}
-                          menor média de gols sofridos por jogo, menor total de
-                          gols sofridos, maior número de jogos e, se necessário,
-                          sorteio.
+                          <span className="font-medium">Melhor defesa:</span> menor média de gols
+                          sofridos por jogo, menor total de gols sofridos, maior número de jogos e,
+                          se necessário, sorteio.
                         </p>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        A plataforma define a atlética vencedora da melhor
-                        defesa. A própria atlética indica internamente qual
-                        goleiro deve receber o prêmio.
+                        A plataforma define a atlética vencedora da melhor defesa. A própria
+                        atlética indica internamente qual goleiro deve receber o prêmio.
                       </p>
                     </div>
                   </>

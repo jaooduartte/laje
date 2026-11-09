@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdminSports } from "@/components/admin/AdminSports";
 import {
@@ -10,11 +10,7 @@ import {
 } from "@/lib/enums";
 import type { Championship, ChampionshipSport, Sport } from "@/lib/types";
 
-const {
-  championshipSportsUpdateMock,
-  sportsUpdateMock,
-  rpcMock,
-} = vi.hoisted(() => ({
+const { championshipSportsUpdateMock, sportsUpdateMock, rpcMock } = vi.hoisted(() => ({
   championshipSportsUpdateMock: vi.fn(),
   sportsUpdateMock: vi.fn(),
   rpcMock: vi.fn(),
@@ -126,13 +122,17 @@ describe("AdminSports", () => {
     );
 
     expect(screen.getByText("Cadastro de atletas na súmula")).toBeInTheDocument();
-    expect(screen.getByText("Contabilização de prêmios (artilheiro e melhor defesa)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Contabilização de prêmios (artilheiro e melhor defesa)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Critérios de premiação")).toBeInTheDocument();
     expect(
       screen.getByText(/Com a opção desligada, a apuração considera somente a fase de grupos\./),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/só entram no ranking atléticas e jogadores de atléticas que disputaram ao menos um jogo eliminatório válido\./),
+      screen.getByText(
+        /só entram no ranking atléticas e jogadores de atléticas que disputaram ao menos um jogo eliminatório válido\./,
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByText((_, element) => {
@@ -149,7 +149,9 @@ describe("AdminSports", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Melhor defesa:/)).toBeInTheDocument();
-    expect(screen.getByText(/A plataforma define a atlética vencedora da melhor defesa/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/A plataforma define a atlética vencedora da melhor defesa/),
+    ).toBeInTheDocument();
   });
 
   it("não exibe blocos de premiação para modalidades do Interlaje", () => {
@@ -185,7 +187,9 @@ describe("AdminSports", () => {
     );
 
     expect(screen.queryByText("Cadastro de atletas na súmula")).not.toBeInTheDocument();
-    expect(screen.queryByText("Contabilização de prêmios (artilheiro e melhor defesa)")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Contabilização de prêmios (artilheiro e melhor defesa)"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Critérios de premiação")).not.toBeInTheDocument();
   });
 
@@ -249,19 +253,11 @@ describe("AdminSports", () => {
       />,
     );
 
-    expect(
-      screen.getAllByText("Critérios oficiais de classificação e desempate"),
-    ).toHaveLength(6);
+    expect(screen.getAllByText("Critérios oficiais de classificação e desempate")).toHaveLength(6);
     expect(screen.getByText(/Pontos average/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Menor número de expulsões por jogo/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getAllByText("Classificação por prova (ordem de prioridade)"),
-    ).toHaveLength(1);
-    expect(
-      screen.getByText(/Swim-off de 50 m na mesma categoria/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Menor número de expulsões por jogo/)).toBeInTheDocument();
+    expect(screen.getAllByText("Classificação por prova (ordem de prioridade)")).toHaveLength(1);
+    expect(screen.getByText(/Swim-off de 50 m na mesma categoria/)).toBeInTheDocument();
     expect(
       screen.getByText(/Revezamento vale 2× os pontos das provas individuais/),
     ).toBeInTheDocument();
@@ -275,12 +271,42 @@ describe("AdminSports", () => {
     };
 
     const interlajeSports: Sport[] = [
-      { id: "sport-basket", name: "Basquetebol", default_match_duration_minutes: 35, created_at: championship.created_at },
-      { id: "sport-futsal", name: "Futsal", default_match_duration_minutes: 35, created_at: championship.created_at },
-      { id: "sport-hand", name: "Handebol", default_match_duration_minutes: 35, created_at: championship.created_at },
-      { id: "sport-volley", name: "Voleibol", default_match_duration_minutes: 35, created_at: championship.created_at },
-      { id: "sport-athletics", name: "Atletismo", default_match_duration_minutes: 35, created_at: championship.created_at },
-      { id: "sport-swimming", name: "Natação", default_match_duration_minutes: 35, created_at: championship.created_at },
+      {
+        id: "sport-basket",
+        name: "Basquetebol",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
+      {
+        id: "sport-futsal",
+        name: "Futsal",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
+      {
+        id: "sport-hand",
+        name: "Handebol",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
+      {
+        id: "sport-volley",
+        name: "Voleibol",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
+      {
+        id: "sport-athletics",
+        name: "Atletismo",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
+      {
+        id: "sport-swimming",
+        name: "Natação",
+        default_match_duration_minutes: 35,
+        created_at: championship.created_at,
+      },
     ];
 
     const interlajeChampionshipSports: ChampionshipSport[] = interlajeSports.map((sport) => ({
@@ -295,7 +321,10 @@ describe("AdminSports", () => {
             ? ChampionshipSportTieBreakerRule.POINTS_AVERAGE
             : ChampionshipSportTieBreakerRule.STANDARD,
       supports_cards: ["Futsal", "Handebol", "Voleibol"].includes(sport.name),
-      result_rule: sport.name == "Voleibol" ? ChampionshipSportResultRule.SETS : ChampionshipSportResultRule.POINTS,
+      result_rule:
+        sport.name == "Voleibol"
+          ? ChampionshipSportResultRule.SETS
+          : ChampionshipSportResultRule.POINTS,
       points_win: ["Atletismo", "Natação"].includes(sport.name) ? 24 : 3,
       points_draw: ["Voleibol", "Atletismo", "Natação"].includes(sport.name) ? 0 : 1,
       supports_individual_awards: false,
@@ -321,8 +350,14 @@ describe("AdminSports", () => {
     expect(screen.getByText("1 ponto")).toBeInTheDocument();
     expect(screen.getByText("Atletismo")).toBeInTheDocument();
     expect(screen.getByText("Natação")).toBeInTheDocument();
-    expect(screen.queryByText("Modalidade oficial ainda não cadastrada na plataforma.")).not.toBeInTheDocument();
-    expect(screen.queryByText("Disponível na plataforma, mas ainda não vinculada ao campeonato selecionado.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Modalidade oficial ainda não cadastrada na plataforma."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Disponível na plataforma, mas ainda não vinculada ao campeonato selecionado.",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("desabilita novamente o botão de salvar W.O. após persistir a configuração", async () => {
@@ -352,29 +387,151 @@ describe("AdminSports", () => {
 
     fireEvent.click(walkoverSaveButton);
 
-    expect(
-      screen.getByText("Atualizar W.O.s já encerrados?"),
-    ).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Salvar sem atualizar jogos" }),
-    );
+    expect(screen.getByText("Atualizar W.O.s já encerrados?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar sem atualizar jogos" }));
 
     await waitFor(() => {
-      expect(rpcMock).toHaveBeenCalledWith(
-        "save_championship_sport_walkover_configuration",
-        {
-          _championship_sport_id: "championship-sport-1",
-          _season_year: 2026,
-          _update_finished_walkovers: false,
-          _walkover_winner_points: 4,
-          _walkover_winner_set_count: null,
-        },
-      );
+      expect(rpcMock).toHaveBeenCalledWith("save_championship_sport_walkover_configuration", {
+        _championship_sport_id: "championship-sport-1",
+        _season_year: 2026,
+        _update_finished_walkovers: false,
+        _walkover_winner_points: 4,
+        _walkover_winner_set_count: null,
+      });
     });
 
     await waitFor(() => {
       expect(walkoverSaveButton).toBeDisabled();
     });
+  });
+
+  it("rejeita zero pontos de W.O. sem abrir a confirmação nem persistir", () => {
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    fireEvent.change(screen.getByDisplayValue("3"), {
+      target: { value: "0" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar" })[1]!);
+
+    expect(screen.queryByText("Atualizar W.O.s já encerrados?")).not.toBeInTheDocument();
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("reverte o horário estimado quando a atualização falha", async () => {
+    const updateQuery = {
+      eq: vi.fn().mockResolvedValue({ error: new Error("Falha temporária") }),
+    };
+    championshipSportsUpdateMock.mockReturnValueOnce(updateQuery);
+
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    const estimatedStartTimeOptions = within(
+      screen.getByText("Horário estimado nos cards").closest(".app-card-muted")!,
+    );
+
+    fireEvent.click(estimatedStartTimeOptions.getByRole("radio", { name: "Não" }));
+
+    await waitFor(() => {
+      expect(updateQuery.eq).toHaveBeenCalledWith("id", "championship-sport-1");
+      expect(estimatedStartTimeOptions.getByRole("radio", { name: "Sim" })).toBeChecked();
+    });
+  });
+
+  it("persiste as opções de premiação da modalidade", async () => {
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Desabilitado" }));
+
+    await waitFor(() => {
+      expect(championshipSportsUpdateMock).toHaveBeenNthCalledWith(1, {
+        supports_individual_awards: false,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("radio", { name: "Somente fase de grupos" }));
+
+    await waitFor(() => {
+      expect(championshipSportsUpdateMock).toHaveBeenNthCalledWith(2, {
+        awards_include_knockout_phase: false,
+      });
+    });
+  });
+
+  it("preserva as opções de premiação e duração quando a atualização falha", async () => {
+    championshipSportsUpdateMock
+      .mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValue({ error: new Error("Falha nas premiações") }),
+      })
+      .mockReturnValueOnce({
+        eq: vi.fn().mockResolvedValue({ error: new Error("Falha nos critérios") }),
+      });
+    sportsUpdateMock.mockReturnValueOnce({
+      eq: vi.fn().mockResolvedValue({ error: new Error("Falha na duração") }),
+    });
+
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("radio", { name: "Desabilitado" }));
+    await waitFor(() => expect(championshipSportsUpdateMock).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("radio", { name: "Somente fase de grupos" }));
+    await waitFor(() => expect(championshipSportsUpdateMock).toHaveBeenCalledTimes(2));
+
+    fireEvent.change(screen.getByDisplayValue("40"), { target: { value: "45" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar" })[0]!);
+
+    await waitFor(() => {
+      expect(sportsUpdateMock).toHaveBeenCalledWith({ default_match_duration_minutes: 45 });
+    });
+  });
+
+  it("mantém a configuração de W.O. ao falhar a persistência", async () => {
+    rpcMock.mockResolvedValueOnce({ data: null, error: new Error("Falha temporária") });
+
+    render(
+      <AdminSports
+        sports={sports}
+        championshipSports={championshipSports}
+        selectedChampionship={championship}
+      />,
+    );
+
+    fireEvent.change(screen.getByDisplayValue("3"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salvar" })[1]!);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar sem atualizar jogos" }));
+
+    await waitFor(() => {
+      expect(rpcMock).toHaveBeenCalledWith(
+        "save_championship_sport_walkover_configuration",
+        expect.objectContaining({ _walkover_winner_points: 4 }),
+      );
+    });
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument();
   });
 
   it("configura pontos e sets concedidos para W.O. em modalidades por sets", async () => {
@@ -420,21 +577,16 @@ describe("AdminSports", () => {
     expect(walkoverSaveButton).toBeDefined();
     fireEvent.click(walkoverSaveButton!);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Salvar e atualizar jogos" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Salvar e atualizar jogos" }));
 
     await waitFor(() => {
-      expect(rpcMock).toHaveBeenCalledWith(
-        "save_championship_sport_walkover_configuration",
-        {
-          _championship_sport_id: "championship-sport-volleyball",
-          _season_year: 2026,
-          _update_finished_walkovers: true,
-          _walkover_winner_points: 21,
-          _walkover_winner_set_count: 2,
-        },
-      );
+      expect(rpcMock).toHaveBeenCalledWith("save_championship_sport_walkover_configuration", {
+        _championship_sport_id: "championship-sport-volleyball",
+        _season_year: 2026,
+        _update_finished_walkovers: true,
+        _walkover_winner_points: 21,
+        _walkover_winner_set_count: 2,
+      });
     });
   });
 

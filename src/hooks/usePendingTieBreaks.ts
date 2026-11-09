@@ -243,7 +243,7 @@ export function usePendingTieBreaks({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [bracketEditionId, championshipId, enabled, fetchPendingTieBreaks]);
 

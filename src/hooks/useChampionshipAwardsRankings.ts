@@ -231,7 +231,7 @@ export function useChampionshipAwardsRankings({
         scheduledRefetchTimeoutRef.current = null;
       }
 
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [championshipId, enabled, seasonYear, fetch, realtimeEnabled]);
 
