@@ -70,6 +70,7 @@ Soluções existentes no mercado tendem a resolver partes do problema, como agen
 O LAJE App propõe uma solução integrada, com base única de dados e fluxos automatizados que conectam operação interna e visualização pública.
 
 **Ambiente web do Portfólio atualmente documentado:**
+
 - frontend React 18 + TypeScript + Vite publicado como projeto Vercel `laje-tcc`;
 - frontend configurado com `VITE_BACKEND_PROVIDER=aws` e `VITE_API_URL` para a API;
 - backend Node.js + Express no repositório `laje-api`;
@@ -158,21 +159,21 @@ Assim, nesta versão do documento, a origem da demanda é registrada como **dema
 
 Para avaliar o espaço de solução, foram analisadas plataformas amplamente utilizadas que oferecem recursos relacionados à gestão de torneios, ligas, agenda, chaveamento e acompanhamento público. A comparação abaixo ajuda a identificar o que já existe no mercado e qual lacuna o LAJE App pretende atender de forma mais aderente ao seu nicho.
 
-| Solução | Link | Público-alvo | Funcionalidades principais | Limitações em relação ao nicho LAJE |
-|---|---|---|---|---|
-| SportsEngine Tourney | [tourneymachine.com](https://www.tourneymachine.com/) | Organizadores de torneios esportivos, equipes e famílias | Agenda, brackets, standings, resultados e app móvel para acompanhamento | Foco amplo em torneios esportivos; não é orientado especificamente ao contexto institucional da LAJE nem à gestão integrada de calendário da liga, permissões administrativas customizadas e regras específicas do domínio universitário local |
-| LeagueApps Tournaments | [leagueapps.com/tournaments](https://leagueapps.com/tournaments/) | Organizações esportivas, clubes e torneios juvenis | Inscrição, comunicação, agenda, brackets, standings, pagamentos e relatórios | Tem forte foco comercial e operacional para organizações esportivas generalistas; não é especializado na governança, regras e fluxos públicos específicos de uma liga universitária como a LAJE |
-| Toornament | [developer.toornament.com](https://developer.toornament.com/) | Organizadores de competições, sobretudo torneios digitais e ecossistemas competitivos | Gestão de torneios, API, projetos, inscrições, check-in, controle de participantes e estrutura de competição | É bastante forte em competição e estruturação, mas sua aderência ao cenário institucional esportivo universitário é indireta; não contempla de forma nativa calendário institucional, operação local da liga e necessidades administrativas específicas do domínio |
-| instantLIGA | [instantliga.com](https://instantliga.com/) | Clubes, escolas, organizadores e grupos que precisam criar torneios rapidamente | Criação de torneios, agenda, standings, brackets e compartilhamento de resultados | Resolve bem cenários genéricos e rápidos, mas com menor profundidade de personalização para permissões, auditoria, regras por campeonato e integração da experiência administrativa e pública em um contexto institucional próprio |
+| Solução                | Link                                                              | Público-alvo                                                                          | Funcionalidades principais                                                                                   | Limitações em relação ao nicho LAJE                                                                                                                                                                                                                                |
+| ---------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SportsEngine Tourney   | [tourneymachine.com](https://www.tourneymachine.com/)             | Organizadores de torneios esportivos, equipes e famílias                              | Agenda, brackets, standings, resultados e app móvel para acompanhamento                                      | Foco amplo em torneios esportivos; não é orientado especificamente ao contexto institucional da LAJE nem à gestão integrada de calendário da liga, permissões administrativas customizadas e regras específicas do domínio universitário local                     |
+| LeagueApps Tournaments | [leagueapps.com/tournaments](https://leagueapps.com/tournaments/) | Organizações esportivas, clubes e torneios juvenis                                    | Inscrição, comunicação, agenda, brackets, standings, pagamentos e relatórios                                 | Tem forte foco comercial e operacional para organizações esportivas generalistas; não é especializado na governança, regras e fluxos públicos específicos de uma liga universitária como a LAJE                                                                    |
+| Toornament             | [developer.toornament.com](https://developer.toornament.com/)     | Organizadores de competições, sobretudo torneios digitais e ecossistemas competitivos | Gestão de torneios, API, projetos, inscrições, check-in, controle de participantes e estrutura de competição | É bastante forte em competição e estruturação, mas sua aderência ao cenário institucional esportivo universitário é indireta; não contempla de forma nativa calendário institucional, operação local da liga e necessidades administrativas específicas do domínio |
+| instantLIGA            | [instantliga.com](https://instantliga.com/)                       | Clubes, escolas, organizadores e grupos que precisam criar torneios rapidamente       | Criação de torneios, agenda, standings, brackets e compartilhamento de resultados                            | Resolve bem cenários genéricos e rápidos, mas com menor profundidade de personalização para permissões, auditoria, regras por campeonato e integração da experiência administrativa e pública em um contexto institucional próprio                                 |
 
 ### Comparação
 
-| Solução | Pontos Fortes | Limitações |
-|---|---|---|
-| SportsEngine Tourney | Forte operação de torneios, boa experiência de agenda e acompanhamento | Menor aderência ao recorte institucional e universitário da LAJE |
-| LeagueApps | Ecossistema robusto de comunicação, agenda e administração esportiva | Orientação mais comercial e generalista, com menos foco no nicho local |
-| Toornament | Estrutura competitiva madura, API e controle detalhado de torneios | Forte associação com cenários competitivos genéricos e digitais, não com a realidade operacional da LAJE |
-| instantLIGA | Facilidade de uso e velocidade para estruturar torneios | Menor profundidade para governança, auditoria e customização de regras e fluxos institucionais |
+| Solução              | Pontos Fortes                                                          | Limitações                                                                                               |
+| -------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| SportsEngine Tourney | Forte operação de torneios, boa experiência de agenda e acompanhamento | Menor aderência ao recorte institucional e universitário da LAJE                                         |
+| LeagueApps           | Ecossistema robusto de comunicação, agenda e administração esportiva   | Orientação mais comercial e generalista, com menos foco no nicho local                                   |
+| Toornament           | Estrutura competitiva madura, API e controle detalhado de torneios     | Forte associação com cenários competitivos genéricos e digitais, não com a realidade operacional da LAJE |
+| instantLIGA          | Facilidade de uso e velocidade para estruturar torneios                | Menor profundidade para governança, auditoria e customização de regras e fluxos institucionais           |
 
 ### Diferencial do projeto
 
@@ -311,14 +312,14 @@ Para fins desta RFC, os casos de uso foram organizados em torno dos fluxos centr
 
 ### Casos de uso centrais
 
-| ID | Ator principal | Caso de uso | Resultado esperado |
-|---|---|---|---|
-| UC01 | Administrador | Autenticar-se no painel administrativo e concluir primeiro acesso quando necessário | Sessão administrativa iniciada, permissões carregadas e ação de login registrada |
-| UC02 | Administrador | Gerenciar campeonatos, modalidades, atléticas e jogos | Base operacional atualizada para suportar agenda, classificação e chaveamento |
-| UC03 | Operador de mesa | Operar partida ao vivo, alterando placar, sets, cartões e status | Resultado persistido, público atualizado e impactos refletidos em standings e chaveamento quando aplicável |
-| UC04 | Visitante, atleta ou torcedor | Consultar páginas públicas de Ao Vivo, Campeonatos e Agenda | Informações de jogos, classificação e chave disponíveis em fluxo único de consulta |
-| UC05 | Visitante, atleta ou torcedor | Consultar o Calendário da Liga | Eventos institucionais exibidos por data e contexto organizador |
-| UC06 | Administrador | Gerenciar usuários, permissões, bloqueio público e logs administrativos | Governança do painel preservada, acesso controlado e trilha de auditoria disponível |
+| ID   | Ator principal                | Caso de uso                                                                         | Resultado esperado                                                                                         |
+| ---- | ----------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| UC01 | Administrador                 | Autenticar-se no painel administrativo e concluir primeiro acesso quando necessário | Sessão administrativa iniciada, permissões carregadas e ação de login registrada                           |
+| UC02 | Administrador                 | Gerenciar campeonatos, modalidades, atléticas e jogos                               | Base operacional atualizada para suportar agenda, classificação e chaveamento                              |
+| UC03 | Operador de mesa              | Operar partida ao vivo, alterando placar, sets, cartões e status                    | Resultado persistido, público atualizado e impactos refletidos em standings e chaveamento quando aplicável |
+| UC04 | Visitante, atleta ou torcedor | Consultar páginas públicas de Ao Vivo, Campeonatos e Agenda                         | Informações de jogos, classificação e chave disponíveis em fluxo único de consulta                         |
+| UC05 | Visitante, atleta ou torcedor | Consultar o Calendário da Liga                                                      | Eventos institucionais exibidos por data e contexto organizador                                            |
+| UC06 | Administrador                 | Gerenciar usuários, permissões, bloqueio público e logs administrativos             | Governança do painel preservada, acesso controlado e trilha de auditoria disponível                        |
 
 ### Fluxos completos priorizados nesta RFC
 
@@ -810,16 +811,16 @@ O frontend consulta os dados operacionais por meio dos contratos HTTP da API e m
 
 ## 5.4 Stack Tecnológica
 
-| Camada | Tecnologias implantadas no ambiente TCC |
-|---|---|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui e Radix UI |
-| API | Node.js, Express, TypeScript e contratos HTTP versionados em `/api/v1` |
-| Persistência | Único Amazon RDS for PostgreSQL 17 da entrega, TLS e migrations versionadas |
-| Execução | Amazon ECS/Fargate, ECR, API Gateway HTTP API, VPC Link e ALB interno |
-| Segredos e identidade da infraestrutura | AWS Secrets Manager, IAM task roles e GitHub OIDC |
-| Processamento assíncrono | Amazon SQS, DLQ, worker da API e EventBridge Scheduler |
-| CI e análise estática | GitHub Actions e SonarQube Cloud |
-| Observabilidade | CloudWatch Logs, métricas e alarmes definidos em Terraform |
+| Camada                                  | Tecnologias implantadas no ambiente TCC                                     |
+| --------------------------------------- | --------------------------------------------------------------------------- |
+| Frontend                                | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui e Radix UI              |
+| API                                     | Node.js, Express, TypeScript e contratos HTTP versionados em `/api/v1`      |
+| Persistência                            | Único Amazon RDS for PostgreSQL 17 da entrega, TLS e migrations versionadas |
+| Execução                                | Amazon ECS/Fargate, ECR, API Gateway HTTP API, VPC Link e ALB interno       |
+| Segredos e identidade da infraestrutura | AWS Secrets Manager, IAM task roles e GitHub OIDC                           |
+| Processamento assíncrono                | Amazon SQS, DLQ, worker da API e EventBridge Scheduler                      |
+| CI e análise estática                   | GitHub Actions e SonarQube Cloud                                            |
+| Observabilidade                         | CloudWatch Logs, métricas e alarmes definidos em Terraform                  |
 
 O projeto Vercel `laje-tcc` hospeda o frontend conforme a exceção aprovada para este projeto. A API e o único RDS escolhido para a entrega TCC são recursos AWS. Alguns identificadores Terraform mantêm o prefixo `staging`; a arquitetura documentada e o workflow utilizam esses recursos para o frontend público e para o desenvolvimento local por túnel SSM.
 
@@ -866,23 +867,23 @@ O produto deve manter a coleta restrita ao necessário para os fluxos descritos 
 
 O planejamento abaixo combina marcos históricos do repositório, edições relevantes da própria RFC, validações já realizadas com usuários finais e os próximos passos da evolução técnica e documental do projeto. As datas históricas foram ancoradas no histórico Git do projeto e do arquivo `docs/Documentation_RFC.md`. As datas de validação com usuários finais foram ancoradas nas datas finais registradas no sistema para a Copa Laje de Verão e para a Copa Laje Society.
 
-| Marco | Descrição | Data |
-|---|---|---|
-| M1 | Criação da base inicial do projeto no repositório | 01/01/2025 |
-| M2 | Criação inicial do documento RFC do LAJE App | 09/04/2026 |
-| M3 | Revisão da RFC para explicitar a arquitetura e os objetivos de entrega | 09/04/2026 |
-| M4 | Ajuste da RFC para registrar com mais clareza a stack do frontend e as metas iniciais | 10/04/2026 |
-| M5 | Validação com usuários finais durante a Copa Laje de Verão | 12/04/2026 |
-| M6 | Consolidação da RFC técnica com os capítulos 1 a 5 | 24/05/2026 |
-| M7 | Ajustes pontuais da RFC para refletir a evolução funcional do app | 28/05/2026 |
-| M8 | Validação com usuários finais durante a Copa Laje Society | 21/06/2026 |
-| M9 | Complementação da RFC com as seções 6 a 10 e revisão de aderência ao modelo oficial | 23/06/2026 |
-| M10 | Consolidação final da RFC alinhada ao app, à Wiki e ao modelo oficial | 29/06/2026 |
-| M11 | Planejamento técnico da refatoração para `laje-api` | 27/07/2026 |
-| M12 | Estrutura inicial do backend dedicado com PostgreSQL e autenticação base | 17/08/2026 |
-| M13 | Migração dos fluxos centrais do produto para a arquitetura-alvo | 21/09/2026 |
-| M14 | CI/CD, análise estática, observabilidade e evolução de testes | 19/10/2026 |
-| M15 | Revisão da RFC e da Wiki com a arquitetura implantada de `laje-tcc`, `laje-api` e AWS | 09/11/2026 |
+| Marco | Descrição                                                                             | Data       |
+| ----- | ------------------------------------------------------------------------------------- | ---------- |
+| M1    | Criação da base inicial do projeto no repositório                                     | 01/01/2025 |
+| M2    | Criação inicial do documento RFC do LAJE App                                          | 09/04/2026 |
+| M3    | Revisão da RFC para explicitar a arquitetura e os objetivos de entrega                | 09/04/2026 |
+| M4    | Ajuste da RFC para registrar com mais clareza a stack do frontend e as metas iniciais | 10/04/2026 |
+| M5    | Validação com usuários finais durante a Copa Laje de Verão                            | 12/04/2026 |
+| M6    | Consolidação da RFC técnica com os capítulos 1 a 5                                    | 24/05/2026 |
+| M7    | Ajustes pontuais da RFC para refletir a evolução funcional do app                     | 28/05/2026 |
+| M8    | Validação com usuários finais durante a Copa Laje Society                             | 21/06/2026 |
+| M9    | Complementação da RFC com as seções 6 a 10 e revisão de aderência ao modelo oficial   | 23/06/2026 |
+| M10   | Consolidação final da RFC alinhada ao app, à Wiki e ao modelo oficial                 | 29/06/2026 |
+| M11   | Planejamento técnico da refatoração para `laje-api`                                   | 27/07/2026 |
+| M12   | Estrutura inicial do backend dedicado com PostgreSQL e autenticação base              | 17/08/2026 |
+| M13   | Migração dos fluxos centrais do produto para a arquitetura-alvo                       | 21/09/2026 |
+| M14   | CI/CD, análise estática, observabilidade e evolução de testes                         | 19/10/2026 |
+| M15   | Revisão da RFC e da Wiki com a arquitetura implantada de `laje-tcc`, `laje-api` e AWS | 09/11/2026 |
 
 ---
 
