@@ -66,7 +66,7 @@ export async function lajeApiRequest<ResponseType>(
     headers.set("authorization", `Bearer ${resolvedAccessToken}`);
   }
 
-  // Requisição para a API dedicada do LAJE, que é usada para autenticação e gerenciamento de usuários.
+  // Envia requisições para a API dedicada e inclui o token de sessão quando disponível.
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     ...options,
     headers,

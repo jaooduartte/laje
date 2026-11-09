@@ -22,7 +22,7 @@
   1.1
 
 - **Revisão técnica:**
-  09/11/2026 — recorte do ambiente web `laje-tcc`, com API `laje-api` e infraestrutura AWS.
+  09/11/2026 — registro dos deployments permanente `laje`/Supabase e TCC `laje-tcc`/AWS.
 
 ---
 
@@ -30,7 +30,14 @@
 
 O LAJE App é uma aplicação web voltada à gestão operacional e à divulgação pública de campeonatos universitários organizados pela Liga das Atléticas de Joinville (LAJE). A proposta do projeto consiste em centralizar, em um único sistema, a administração de jogos, classificações, chaveamentos, agenda e eventos institucionais, além de disponibilizar essas informações ao público de forma estruturada e atualizada em tempo quase real.
 
-Esta RFC documenta a versão web `laje-tcc` usada no Portfólio. O frontend React/Vite publicado na Vercel consome a API dedicada `laje-api`, executada em AWS, e os dados ficam no Amazon RDS for PostgreSQL 17. `laje-staging-postgres` é o único RDS AWS selecionado para a entrega; o prefixo `staging` faz parte da nomenclatura atual dos recursos e não indica necessidade de outro banco. O frontend publicado e o desenvolvimento local por túnel SSM usam esse mesmo RDS, com isolamento lógico de dados e fixtures de teste.
+O LAJE App tem dois deployments independentes. O projeto Vercel `laje` permanece como produção operacional da liga e usa Supabase. O projeto Vercel `laje-tcc` é a versão web do TCC: usa `laje-api` na AWS e Amazon RDS for PostgreSQL 17. `laje-staging-postgres` é o único RDS AWS selecionado para a entrega; o prefixo `staging` faz parte dos nomes atuais e não exige outro banco. Os deployments usam dados separados e não possuem sincronização automática.
+
+| Deployment | Frontend | Backend e persistência | Escopo |
+| --- | --- | --- | --- |
+| Operação permanente | Vercel `laje` | Supabase Auth, PostgreSQL, funções SQL e recursos Realtime | Operação atual da LAJE, mantida no Supabase. |
+| TCC e Portfólio | Vercel `laje-tcc` | `laje-api` na AWS e o RDS `laje-staging-postgres` | Versão AWS documentada nesta revisão. |
+
+O desenvolvimento local da API do TCC e o frontend publicado `laje-tcc` alcançam o mesmo RDS: o primeiro pelo túnel SSM e o segundo pela API Gateway e ECS/Fargate. O repositório contém fixtures para uma base de testes nomeada `laje_priority_flows`; não foi confirmado que essa base exista na instância AWS. As contas sintéticas desses testes não são contas de homologação provisionadas no ambiente publicado. Portanto, os testes de escrita não devem apontar para a base usada pela demonstração.
 
 ---
 
@@ -275,7 +282,7 @@ CI, testes, análise estática e deploy controlado já estão configurados nos r
 
 ## Nota de Situação da RFC nesta Etapa
 
-O projeto possui frontend `laje-tcc`, API própria, banco PostgreSQL em AWS, CI, análise estática e workflow controlado de publicação. O estado AWS foi consultado em 09/11/2026. A aprovação de CI ou a existência de recursos configurados não substitui evidência de funcionamento dos fluxos na versão selecionada para a avaliação.
+O projeto mantém a operação permanente `laje`/Supabase e possui o deployment de TCC `laje-tcc`/`laje-api`/AWS, além de CI, análise estática e workflow manual de publicação. Consulta de somente leitura ao plano de controle AWS em 09/11/2026 mostrou o ECS com uma tarefa ativa (`:36`) e o RDS disponível. Isso comprova o estado dos recursos naquele momento, mas não substitui health checks, smoke funcional, evidência de backup/restauração ou validação da versão selecionada para a avaliação.
 
 ---
 
@@ -406,6 +413,7 @@ Os requisitos funcionais a seguir foram sintetizados a partir do comportamento j
 
 Observação de aderência:
 
+- O mesmo frontend possui dois deployments separados: `laje` usa Supabase na operação permanente, enquanto `laje-tcc` usa a API AWS descrita nesta RFC.
 - **Frontend do Portfólio:** React 18, TypeScript, Vite, Tailwind e componentes shadcn/ui.
 - **Backend atual do ambiente TCC:** Node.js + Express, API REST versionada em `/api/v1`, autenticação e regras de negócio no repositório `laje-api`.
 - **Persistência atual:** Amazon RDS for PostgreSQL 17, acessado exclusivamente pela API e com TLS.
@@ -636,7 +644,7 @@ Nesta etapa, esses elementos são tratados como **feedback inicial qualitativo**
 
 ## 5.1 Diagrama C4
 
-Os diagramas C4 registram o contexto do produto, seus containers lógicos e os principais componentes da API. A implantação física atual do `laje-tcc` está detalhada após os diagramas.
+Os diagramas C4 existentes registram o contexto do produto e a decomposição lógica usada pelo ambiente TCC. Eles não representam o deployment independente `laje`/Supabase. O quadro de ambientes no início desta RFC e o fluxo de implantação a seguir distinguem os dois deployments sem alterar os diagramas C4 existentes.
 
 ### Nível 1 — Contexto
 
@@ -646,7 +654,7 @@ O diagrama de contexto mostra o LAJE App como sistema central do produto, eviden
 
 ### Nível 2 — Containers
 
-O diagrama de containers representa a arquitetura lógica atual: o frontend web consome a API dedicada, que concentra as operações de domínio e acessa o PostgreSQL.
+O diagrama de containers representa o caminho lógico do `laje-tcc`: frontend web, API dedicada e PostgreSQL. A operação permanente `laje` mantém seu caminho separado pelo Supabase.
 
 ![Diagrama C4 nível 2 - containers do LAJE App](./assets/nivel-2.png)
 
@@ -656,13 +664,19 @@ O diagrama de componentes representa a decomposição lógica da `laje-api`. Ele
 
 ![Diagrama C4 nível 3 - componentes da API LAJE](./assets/nivel-3.png)
 
-### Implantação atual do ambiente TCC
+### Deployments da operação permanente e do TCC
 
 ```mermaid
 flowchart LR
-  USER[Visitante, administrador ou operador] --> WEB
-  subgraph VERCEL[Frontend do Portfólio]
-    WEB[Projeto Vercel laje-tcc\nReact + TypeScript + Vite]
+  USER[Visitante, administrador ou operador] --> WEB_LAJE
+  USER --> WEB_TCC
+  subgraph PERMANENTE[Operação permanente da LAJE]
+    WEB_LAJE[Projeto Vercel laje\nReact + TypeScript + Vite]
+    SUPABASE[Supabase\nAuth, PostgreSQL, funções SQL e Realtime]
+    WEB_LAJE --> SUPABASE
+  end
+  subgraph VERCEL[Frontend do TCC e Portfólio]
+    WEB_TCC[Projeto Vercel laje-tcc\nReact + TypeScript + Vite]
   end
   subgraph AWS[AWS sa-east-1]
     APIGW[API Gateway HTTP API\nendpoint HTTPS]
@@ -676,7 +690,7 @@ flowchart LR
     SQS[Amazon SQS + DLQ]
     SCHEDULER[EventBridge Scheduler]
   end
-  WEB -->|HTTPS /api/v1| APIGW
+  WEB_TCC -->|HTTPS /api/v1| APIGW
   APIGW --> VPCLINK --> ALB --> ECS
   ECS -->|TLS| RDS
   ECS --> SECRETS
@@ -686,7 +700,7 @@ flowchart LR
   SCHEDULER --> SQS
 ```
 
-Em 09/11/2026, a consulta AWS mostrou o serviço ECS com uma tarefa em execução e o RDS disponível. Esse retrato representa a instalação AWS do TCC; a execução do workflow `Deploy AWS` e os health checks devem ser consultados para validar cada publicação.
+Em 09/11/2026, a consulta de somente leitura ao plano de controle AWS mostrou o serviço ECS com uma tarefa desejada e em execução, task definition `:36`, e o RDS disponível. Esse retrato representa os recursos do TCC nessa data; não comprova resposta dos health checks, execução recente do workflow ou funcionamento dos fluxos de produto. O deployment permanente `laje` continua independente e não foi alterado por esta entrega.
 
 ## 5.2 Modelo de Dados
 
@@ -821,6 +835,8 @@ O frontend consulta os dados operacionais por meio dos contratos HTTP da API e m
 | Processamento assíncrono                | Amazon SQS, DLQ, worker da API e EventBridge Scheduler                      |
 | CI e análise estática                   | GitHub Actions e SonarQube Cloud                                            |
 | Observabilidade                         | CloudWatch Logs, métricas e alarmes definidos em Terraform                  |
+
+Os deployments usam providers diferentes: Vercel `laje` usa Supabase para autenticação, persistência, funções SQL e Realtime; Vercel `laje-tcc` usa `laje-api` e Amazon RDS. O frontend seleciona o provider por `VITE_BACKEND_PROVIDER`. As duas configurações não sincronizam dados e devem ser consideradas ambientes independentes.
 
 O projeto Vercel `laje-tcc` hospeda o frontend conforme a exceção aprovada para este projeto. A API e o único RDS escolhido para a entrega TCC são recursos AWS. Alguns identificadores Terraform mantêm o prefixo `staging`; a arquitetura documentada e o workflow utilizam esses recursos para o frontend público e para o desenvolvimento local por túnel SSM.
 
