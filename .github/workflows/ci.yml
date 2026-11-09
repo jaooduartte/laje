@@ -60,6 +60,12 @@ jobs:
         id: frontend_coverage
         run: npm run test:coverage
 
+      - name: Validate frontend LCOV report
+        run: |
+          test -s coverage/frontend/lcov.info
+          grep -q '^SF:' coverage/frontend/lcov.info
+          grep -q '^end_of_record' coverage/frontend/lcov.info
+
       - name: Upload frontend coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,6 +85,32 @@ jobs:
           VITE_SUPABASE_URL: ""
           VITE_SUPABASE_PUBLISHABLE_KEY: ""
         run: npm run build
+
+      - name: Validate SonarQube Cloud project variables
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.fork == false) ||
+          (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        env:
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+        run: |
+          test -n "$SONAR_ORGANIZATION" || { echo "::error::Set the SONAR_ORGANIZATION repository variable."; exit 1; }
+          test -n "$SONAR_PROJECT_KEY" || { echo "::error::Set the SONAR_PROJECT_KEY repository variable."; exit 1; }
+
+      - name: SonarQube Cloud analysis
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.fork == false) ||
+          (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        uses: SonarSource/sonarqube-scan-action@v8.4.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >-
+            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true
 
   coverage-comment:
     name: Publish Coverage Summary
