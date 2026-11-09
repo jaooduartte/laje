@@ -43,7 +43,14 @@ import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividu
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import { useAuth } from "@/hooks/useAuth";
-import type { ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+import type {
+  ChampionshipBracketView,
+  ChampionshipIndividualSession,
+  ChampionshipSport,
+  Match,
+  Sport,
+  Team,
+} from "@/lib/types";
 import {
   AppBadgeTone,
   BracketPhase,
