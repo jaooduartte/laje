@@ -43,7 +43,14 @@ import { useChampionshipIndividualEvents } from "@/hooks/useChampionshipIndividu
 import { useCompetitionTeamDisqualifications } from "@/hooks/useCompetitionTeamDisqualifications";
 import { useChampionshipYellowCardDiscipline } from "@/hooks/useChampionshipYellowCardDiscipline";
 import { useAuth } from "@/hooks/useAuth";
-import type { ChampionshipBracketView, ChampionshipSport, Match, Sport, Team } from "@/lib/types";
+import type {
+  ChampionshipBracketView,
+  ChampionshipIndividualSession,
+  ChampionshipSport,
+  Match,
+  Sport,
+  Team,
+} from "@/lib/types";
 import {
   AppBadgeTone,
   BracketPhase,
@@ -1889,6 +1896,7 @@ export function AdminMatchControl({
     });
   };
 
+  // Exemplo de função onde verifica se usa a API do laje-api ou o Supabase para atualizar o placar do jogo
   const persistMatchDraft = async (match: Match, matchDraft: MatchControlDraft) => {
     if (!canManageScoreboard) {
       return false;
@@ -4318,7 +4326,7 @@ export function AdminMatchControl({
                             !hasCurrentSetScore ||
                             hasReachedInterlajeVolleyballSetLimit
                           }
-                          className="!bg-amber-500 !text-white hover:!bg-amber-400"
+                          className="bg-amber-500! text-white! hover:bg-amber-400!"
                         >
                           {isMatchCompletionLoading ? (
                             <Loader2 className="h-3 w-3 animate-spin sm:mr-1" />
@@ -4425,7 +4433,7 @@ export function AdminMatchControl({
                         ) : null}
 
                         {matchRepresentation ? (
-                          <p className="break-words text-xs text-muted-foreground">
+                          <p className="wrap-break-word text-xs text-muted-foreground">
                             Representação: {matchRepresentation}
                           </p>
                         ) : null}

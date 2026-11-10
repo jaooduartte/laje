@@ -66,6 +66,7 @@ export async function lajeApiRequest<ResponseType>(
     headers.set("authorization", `Bearer ${resolvedAccessToken}`);
   }
 
+  // Envia requisições para a API dedicada e inclui o token de sessão quando disponível.
   const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     ...options,
     headers,

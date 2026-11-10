@@ -1,5 +1,14 @@
 Aplicação web da **Liga das Atléticas de Joinville (LAJE)** para gestão administrativa e exibição pública de campeonatos, jogos, placares ao vivo, classificações, chaveamentos e calendário da liga.
 
+Este repositório mantém o frontend usado em dois deployments independentes:
+
+| Deployment                | Backend                            | Uso                                                |
+| ------------------------- | ---------------------------------- | -------------------------------------------------- |
+| Projeto Vercel `laje`     | Supabase                           | Produção operacional permanente da LAJE.           |
+| Projeto Vercel `laje-tcc` | API `laje-api` e PostgreSQL na AWS | Ambiente web documentado para o TCC e o Portfólio. |
+
+O projeto `laje` permanece no Supabase. O deployment `laje-tcc` usa exclusivamente a API AWS e seus próprios dados; não há sincronização automática entre os ambientes.
+
 ## Documentação
 
 A documentação oficial do projeto está centralizada na Wiki do repositório:
@@ -41,18 +50,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
-As variáveis `VITE_*` são públicas no bundle do navegador e não devem receber segredos.
+As variáveis `VITE_*` são públicas no bundle do navegador e não devem receber segredos. O mesmo código oferece dois providers por deployment:
 
-O mesmo repositório suporta dois modos de execução por deployment:
+- `VITE_BACKEND_PROVIDER=supabase`: usado pelo projeto Vercel `laje`; requer `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- `VITE_BACKEND_PROVIDER=aws`: usado pelo projeto Vercel `laje-tcc`; requer `VITE_API_URL` apontando para a base `/api/v1` da `laje-api`. Nesse modo, o cliente Supabase não é inicializado.
 
-- `VITE_BACKEND_PROVIDER=supabase`: mantém o projeto Vercel atual `laje` no backend Supabase. Nesse modo, `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` são obrigatórias.
-- `VITE_BACKEND_PROVIDER=aws`: usa a `laje-api` como backend. Nesse modo, `VITE_API_URL` é obrigatória e o cliente Supabase não é inicializado.
+Por compatibilidade, quando o provider não está definido, a presença de `VITE_API_URL` seleciona AWS; sem essa variável, o frontend usa Supabase. Novos deployments devem declarar o provider explicitamente. O projeto `laje` continua usando Supabase como produção operacional; não está previsto migrá-lo nem alterar suas variáveis para AWS. Os ambientes não compartilham uma base de dados nem sincronizam alterações.
 
-Por compatibilidade transitória, quando `VITE_BACKEND_PROVIDER` não está definido, a presença de `VITE_API_URL` ainda seleciona o modo AWS; sem `VITE_API_URL`, o modo legado Supabase é mantido. Novos deployments devem sempre declarar o provider explicitamente.
+O frontend `laje-tcc` usa o proxy Vite descrito na [Wiki](https://github.com/jaooduartte/laje/wiki/Setup-e-Configura%C3%A7%C3%A3o-do-Ambiente) no desenvolvimento local.
 
-O projeto Vercel `laje-tcc` é a aplicação AWS-only apresentada como **entrega do TCC**. O projeto Vercel `laje` continuará usando Supabase **de forma permanente**, como produção operacional independente; não está previsto migrá-lo nem alterar suas variáveis para AWS. Recursos ainda dependentes de realtime/Edge Functions permanecem rastreados nas tarefas de migração correspondentes e não devem voltar silenciosamente ao Supabase no modo AWS.
-
-Enquanto essas migrações não forem concluídas, o modo AWS bloqueia explicitamente acessos legados ainda sem endpoint equivalente, em vez de consultar o Supabase como fallback. Nesta etapa isso inclui catálogo global de atléticas/modalidades, remoções de modalidade por temporada, métricas do dashboard, feriados do calendário e o envio de e-mail via Edge Function após pedido de reserva. O ano corrente do campeonato permanece disponível como fallback local quando a consulta histórica de temporadas ainda não está migrada.
+Os fluxos já roteados para a API devem usar seus contratos `/api/v1`. A revisão atual encontrou criação e exclusão de atléticas em `AdminTeams.tsx` e gravação da configuração de WO em `AdminSports.tsx` feitas por um cliente fora da API. Esses pontos não comprovam cobertura completa da arquitetura AWS do TCC e precisam ser migrados ou excluídos da demonstração até haver endpoints correspondentes.
 
 ## Quality gate
 
@@ -76,7 +83,7 @@ O repositório possui dívida TypeScript anterior à adoção deste quality gate
 
 A formatação também é incremental nesta etapa: o Prettier valida os arquivos modificados pela branch/PR sem exigir a reformatação massiva do código legado em uma única entrega.
 
-O GitHub Actions valida pull requests para `main`, pushes na `main` e execução manual, com builds separados para Supabase e AWS-only. A Vercel publica somente commits da `main` e não cria previews automáticos de branches, conforme `vercel.json`. Consulte [CI/CD e ambientes Vercel](docs/quality/ci.md) para os controles de publicação.
+O GitHub Actions valida pull requests para `main`, pushes na `main` e execução manual, incluindo o build configurado para a API AWS. A Vercel publica somente commits da `main` e não cria previews automáticos de branches, conforme `vercel.json`. Consulte [CI/CD e ambientes Vercel](docs/quality/ci.md) para os controles de publicação.
 
 ## Observação
 
