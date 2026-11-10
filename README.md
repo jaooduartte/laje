@@ -2,9 +2,9 @@ Aplicação web da **Liga das Atléticas de Joinville (LAJE)** para gestão admi
 
 Este repositório mantém o frontend usado em dois deployments independentes:
 
-| Deployment | Backend | Uso |
-| --- | --- | --- |
-| Projeto Vercel `laje` | Supabase | Produção operacional permanente da LAJE. |
+| Deployment                | Backend                            | Uso                                                |
+| ------------------------- | ---------------------------------- | -------------------------------------------------- |
+| Projeto Vercel `laje`     | Supabase                           | Produção operacional permanente da LAJE.           |
 | Projeto Vercel `laje-tcc` | API `laje-api` e PostgreSQL na AWS | Ambiente web documentado para o TCC e o Portfólio. |
 
 O projeto `laje` permanece no Supabase. O deployment `laje-tcc` usa exclusivamente a API AWS e seus próprios dados; não há sincronização automática entre os ambientes.

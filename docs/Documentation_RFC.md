@@ -32,10 +32,10 @@ O LAJE App é uma aplicação web voltada à gestão operacional e à divulgaç�
 
 O LAJE App tem dois deployments independentes. O projeto Vercel `laje` permanece como produção operacional da liga e usa Supabase. O projeto Vercel `laje-tcc` é a versão web do TCC: usa `laje-api` na AWS e Amazon RDS for PostgreSQL 17. `laje-staging-postgres` é o único RDS AWS selecionado para a entrega; o prefixo `staging` faz parte dos nomes atuais e não exige outro banco. Os deployments usam dados separados e não possuem sincronização automática.
 
-| Deployment | Frontend | Backend e persistência | Escopo |
-| --- | --- | --- | --- |
-| Operação permanente | Vercel `laje` | Supabase Auth, PostgreSQL, funções SQL e recursos Realtime | Operação atual da LAJE, mantida no Supabase. |
-| TCC e Portfólio | Vercel `laje-tcc` | `laje-api` na AWS e o RDS `laje-staging-postgres` | Versão AWS documentada nesta revisão. |
+| Deployment          | Frontend          | Backend e persistência                                     | Escopo                                       |
+| ------------------- | ----------------- | ---------------------------------------------------------- | -------------------------------------------- |
+| Operação permanente | Vercel `laje`     | Supabase Auth, PostgreSQL, funções SQL e recursos Realtime | Operação atual da LAJE, mantida no Supabase. |
+| TCC e Portfólio     | Vercel `laje-tcc` | `laje-api` na AWS e o RDS `laje-staging-postgres`          | Versão AWS documentada nesta revisão.        |
 
 O desenvolvimento local da API do TCC e o frontend publicado `laje-tcc` alcançam o mesmo RDS: o primeiro pelo túnel SSM e o segundo pela API Gateway e ECS/Fargate. O repositório contém fixtures para uma base de testes nomeada `laje_priority_flows`; não foi confirmado que essa base exista na instância AWS. As contas sintéticas desses testes não são contas de homologação provisionadas no ambiente publicado. Portanto, os testes de escrita não devem apontar para a base usada pela demonstração.
 
