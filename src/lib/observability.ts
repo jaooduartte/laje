@@ -9,8 +9,8 @@ export type BrowserFailureKind =
 
 interface BrowserFailureOptions {
   status?: number;
-  code?: string;
-  requestId?: string | null;
+  code?: string | undefined;
+  requestId?: string | null | undefined;
 }
 
 const codePattern = /^[A-Z][A-Z0-9_]{0,63}$/;
