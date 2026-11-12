@@ -49,6 +49,8 @@ jobs:
         run: |
           npx prettier src/domain/championship-brackets/championshipBracket.repository.ts --write
           git diff -- src/domain/championship-brackets/championshipBracket.repository.ts
+          npx prettier docs/quality/observability-aws.md src/lib/observability.test.ts src/lib/observability.ts --write
+          git diff -- docs/quality/observability-aws.md src/lib/observability.test.ts src/lib/observability.ts
 
       - name: Check formatting
         run: npm run format:check
