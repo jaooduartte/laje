@@ -9,10 +9,7 @@ afterEach(() => {
 
 async function loadTelemetry(provider: "aws" | "supabase") {
   vi.stubEnv("VITE_BACKEND_PROVIDER", provider);
-  vi.stubEnv(
-    "VITE_API_URL",
-    provider === "aws" ? "https://api.example.test/api/v1" : "",
-  );
+  vi.stubEnv("VITE_API_URL", provider === "aws" ? "https://api.example.test/api/v1" : "");
   vi.resetModules();
   return import("./observability");
 }
@@ -62,8 +59,7 @@ describe("LAJE-40 AWS-only browser error telemetry", () => {
   it("never sends telemetry from the permanent Supabase deployment", async () => {
     const fakeFetch = vi.fn().mockResolvedValue({ status: 204 });
     vi.stubGlobal("fetch", fakeFetch);
-    const { reportBrowserFailure, installAwsErrorMonitoring } =
-      await loadTelemetry("supabase");
+    const { reportBrowserFailure, installAwsErrorMonitoring } = await loadTelemetry("supabase");
     reportBrowserFailure("javascript");
     installAwsErrorMonitoring();
 
