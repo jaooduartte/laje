@@ -1,4 +1,5 @@
 import { frontendEnvironment, isAwsBackendEnabled } from "@/config/environment";
+import { reportBrowserFailure } from "@/lib/observability";
 
 interface ApiErrorPayload {
   error?: {
@@ -67,11 +68,20 @@ export async function lajeApiRequest<ResponseType>(
   }
 
   // Envia requisições para a API dedicada e inclui o token de sessão quando disponível.
-  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${resolveApiBaseUrl()}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (error) {
+    // An intentional cancellation is not an incident; preserve the original error.
+    if (!(error instanceof Error && error.name === "AbortError")) {
+      reportBrowserFailure("api-network");
+    }
+    throw error;
+  }
 
   if (response.status === 204) {
     return undefined as ResponseType;
@@ -82,6 +92,13 @@ export async function lajeApiRequest<ResponseType>(
 
   if (!response.ok) {
     const errorPayload = payload as ApiErrorPayload | null;
+    if (response.status >= 500) {
+      reportBrowserFailure("api-http", {
+        status: response.status,
+        code: errorPayload?.error?.code,
+        requestId: response.headers.get("x-request-id"),
+      });
+    }
     throw new LajeApiError(
       response.status,
       errorPayload?.error?.code ?? "LAJE_API_REQUEST_FAILED",
