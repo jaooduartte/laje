@@ -40,9 +40,7 @@ describe("LAJE-40 AWS error boundary", () => {
       </AwsErrorBoundary>,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Não foi possível carregar esta página.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível carregar esta página.");
     expect(reportBrowserFailure).toHaveBeenCalledWith("react-render");
   });
 });
