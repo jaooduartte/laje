@@ -1646,7 +1646,7 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
     });
 
     expect(screen.getByText(/Tudo certo neste dia|pendência.*para revisar/i)).toBeInTheDocument();
-    expect(screen.getByText("Futsal: 3 jogos")).toBeInTheDocument();
+    expect(screen.queryByText("Futsal: 3 jogos")).not.toBeInTheDocument();
     expect(screen.queryByText("Jogos planejados por modalidade")).not.toBeInTheDocument();
 
     fireEvent.click(expandButton);
@@ -1657,6 +1657,50 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
         name: "Recolher programação de Dia 1",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("exibe até duas quadras por vez na configuração, com rolagem horizontal", async () => {
+    const draft = buildDraft({
+      current_step_index: 10,
+    });
+    const location = draft.schedule_days[0]!.locations[0]!;
+    const originalCourt = location.courts[0]!;
+    location.courts.push(
+      { ...originalCourt, id: "court-2", name: "Quadra Externa", position: 2 },
+      { ...originalCourt, id: "court-3", name: "Quadra Secundária", position: 3 },
+    );
+
+    fetchChampionshipBracketWizardDraftMock.mockResolvedValue({
+      draft_form_values: draft,
+      metadata: null,
+      source: "local",
+    });
+
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Expandir programação de Dia 1",
+      }),
+    );
+
+    const courtsRegion = screen.getByRole("region", { name: "Quadras de Dia 1" });
+    expect(courtsRegion).toHaveClass("overflow-x-auto");
+
+    const courtTrack = courtsRegion.firstElementChild;
+    expect(courtTrack).toHaveClass("flex", "w-full");
+    expect(courtTrack?.children).toHaveLength(3);
+    Array.from(courtTrack?.children ?? []).forEach((courtCard) => {
+      expect(courtCard).toHaveClass(
+        "min-w-[min(100%,400px)]",
+        "lg:w-[calc(50%-0.5px)]",
+      );
+    });
+
+    expect(within(courtsRegion).getByText("Quadra Interna")).toBeInTheDocument();
+    expect(within(courtsRegion).getByText("Quadra Externa")).toBeInTheDocument();
+    expect(within(courtsRegion).getByText("Quadra Secundária")).toBeInTheDocument();
+    expect(screen.queryByText("Futsal: 3 jogos")).not.toBeInTheDocument();
   });
 
   it("recolhe os dias da agenda até o admin expandir", async () => {
