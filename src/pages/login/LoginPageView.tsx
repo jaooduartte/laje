@@ -80,27 +80,27 @@ export function LoginPageView({
   onSignOut,
 }: LoginPageViewProps) {
   if (isLoading) {
-  return (
-    <div className="app-page">
-      <Header />
+    return (
+      <div className="app-page">
+        <Header />
 
-      <main className="container flex items-center justify-center py-10">
-        <div className="glass-panel w-full max-w-sm space-y-8 p-8">
-          <div className="flex flex-col items-center space-y-3 text-center">
-            <Skeleton className="h-14 w-14 rounded-xl" />
-            <Skeleton className="h-7 w-36" />
-            <Skeleton className="h-4 w-56 max-w-full" />
-          </div>
+        <main className="container flex items-center justify-center py-10">
+          <div className="glass-panel w-full max-w-sm space-y-8 p-8">
+            <div className="flex flex-col items-center space-y-3 text-center">
+              <Skeleton className="h-14 w-14 rounded-xl" />
+              <Skeleton className="h-7 w-36" />
+              <Skeleton className="h-4 w-56 max-w-full" />
+            </div>
 
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full rounded-xl" />
-            <Skeleton className="h-10 w-full rounded-xl" />
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
           </div>
-        </div>
-      </main>
-    </div>
-  );
-}
+        </main>
+      </div>
+    );
+  }
 
   if (isUnauthorized) {
     return (
@@ -110,7 +110,9 @@ export function LoginPageView({
         <main className="container flex items-center justify-center py-10">
           <div className="glass-panel enter-section w-full max-w-sm space-y-4 p-8 text-center">
             <h1 className="text-2xl font-display font-bold">Acesso não autorizado</h1>
-            <p className="text-sm text-muted-foreground">Seu usuário não possui perfil para acessar o painel.</p>
+            <p className="text-sm text-muted-foreground">
+              Seu usuário não possui perfil para acessar o painel.
+            </p>
             <Button type="button" className="w-full" onClick={onSignOut}>
               Voltar
             </Button>
@@ -127,7 +129,11 @@ export function LoginPageView({
       <main className="container flex items-center justify-center py-10">
         <div className="glass-panel enter-section w-full max-w-sm space-y-8 p-8">
           <div className="space-y-2 text-center">
-            <img src="/logo.png" alt="Logo LAJE" className="mx-auto h-14 w-14 rounded-xl object-cover" />
+            <img
+              src="/logo.png"
+              alt="Logo LAJE"
+              className="mx-auto h-14 w-14 rounded-xl object-cover"
+            />
             <h1 className="text-2xl font-display font-bold">{resolveLoginTitle(loginStage)}</h1>
             <p className="text-sm text-muted-foreground">{resolveLoginDescription(loginStage)}</p>
           </div>
@@ -186,7 +192,11 @@ export function LoginPageView({
               </div>
             ) : null}
 
-            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <p role="alert" className="text-sm text-destructive">
+                {error}
+              </p>
+            ) : null}
 
             <div className="space-y-2">
               <Button
@@ -203,7 +213,12 @@ export function LoginPageView({
               </Button>
 
               {loginStage != AdminLoginStage.LOGIN_IDENTIFIER ? (
-                <Button type="button" variant="outline" className="w-full bg-background/70" onClick={onResetLoginFlow}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full bg-background/70"
+                  onClick={onResetLoginFlow}
+                >
                   Alterar usuário
                 </Button>
               ) : null}
