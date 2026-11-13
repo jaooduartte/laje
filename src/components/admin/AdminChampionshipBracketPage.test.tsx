@@ -1645,7 +1645,10 @@ describe("AdminChampionshipBracketPage - Etapa 13", () => {
       name: "Expandir programação de Dia 1",
     });
 
-    expect(screen.getByText(/Tudo certo neste dia|pendência.*para revisar/i)).toBeInTheDocument();
+    const dayStatus = screen.getByText(/Tudo certo neste dia|pendência.*para revisar/i);
+    expect(dayStatus).toBeInTheDocument();
+    expect(expandButton).toHaveClass("flex", "justify-between");
+    expect(dayStatus.parentElement?.parentElement).toHaveClass("ml-auto", "shrink-0");
     expect(screen.queryByText("Futsal: 3 jogos")).not.toBeInTheDocument();
     expect(screen.queryByText("Jogos planejados por modalidade")).not.toBeInTheDocument();
 
