@@ -1,8 +1,9 @@
 import { MemoryRouter } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Header } from "@/components/Header";
 import { DEFAULT_PUBLIC_ACCESS_SETTINGS } from "@/lib/publicAccess";
+import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 
 const mockUseAuth = vi.fn();
 const mockUsePublicAccessSettings = vi.fn();
@@ -58,6 +59,21 @@ describe("Header", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it("oferece nomes acessíveis para todos os links da navegação em telas pequenas", () => {
+    renderHeader();
+
+    const navigation = screen.getByRole("navigation", { name: "Navegação principal" });
+    const links = within(navigation).getAllByRole("link");
+    expect(links).toHaveLength(HEADER_APP_NAVIGATION_ITEMS.length);
+
+    for (const item of HEADER_APP_NAVIGATION_ITEMS) {
+      expect(within(navigation).getByRole("link", { name: item.label })).toHaveAttribute(
+        "aria-label",
+        item.label,
+      );
+    }
   });
 
   it("reserva o afastamento visual sem deslocar o header sticky", () => {
