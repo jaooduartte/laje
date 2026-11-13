@@ -55,13 +55,7 @@ describe("LAJE-90 acessibilidade do login administrativo", () => {
   });
 
   it("mantém um nome acessível no botão desabilitado durante o envio", () => {
-    render(
-      <LoginPageView
-        {...defaultProps}
-        loginStage={AdminLoginStage.PASSWORD}
-        submitting
-      />,
-    );
+    render(<LoginPageView {...defaultProps} loginStage={AdminLoginStage.PASSWORD} submitting />);
     expect(screen.getByRole("button", { name: "Enviando..." })).toBeDisabled();
   });
 });
