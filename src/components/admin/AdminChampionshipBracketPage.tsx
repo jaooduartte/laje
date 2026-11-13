@@ -12725,11 +12725,11 @@ export function AdminChampionshipBracketPage({
                                 }));
                               }}
                               className={cn(
-                                "grid w-full gap-3 px-5 py-4 text-left transition-colors hover:text-foreground lg:grid-cols-[auto_minmax(0,1fr)_auto] lg:items-center",
+                                "flex w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors hover:text-foreground",
                                 isCourtPreferenceDayExpanded && "border-b border-border/40",
                               )}
                             >
-                              <div>
+                              <div className="min-w-0 flex-1">
                                 <p className="text-base font-bold">{preferenceRow.day_label}</p>
 
                                 <p className="mt-1 flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
@@ -12743,7 +12743,7 @@ export function AdminChampionshipBracketPage({
                                 </p>
                               </div>
 
-                              <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
+                              <div className="ml-auto flex shrink-0 items-center gap-3 text-right text-xs font-medium text-muted-foreground">
                                 <div>
                                   <p
                                     className={cn(
