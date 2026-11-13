@@ -149,6 +149,7 @@ export function Header() {
           </Link>
 
           <nav
+            aria-label="Navegação principal"
             ref={navRef}
             className="app-pill-container app-header-nav-container app-scrollbar-hidden relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
           >
@@ -177,6 +178,7 @@ export function Header() {
 
                     return (
                       <button
+                        aria-label={label}
                         key={routePath}
                         type="button"
                         disabled
@@ -191,6 +193,7 @@ export function Header() {
 
                   return (
                     <Link
+                      aria-label={label}
                       key={routePath}
                       to={routePath}
                       aria-current={
