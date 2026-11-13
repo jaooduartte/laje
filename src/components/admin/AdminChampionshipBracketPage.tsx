@@ -12743,29 +12743,6 @@ export function AdminChampionshipBracketPage({
                                 </p>
                               </div>
 
-                              <div className="flex flex-wrap gap-2 lg:justify-center">
-                                {preferenceRow.court_cards.map((preferenceCard) => (
-                                  <span
-                                    key={`${preferenceCard.key}-header-summary`}
-                                    className="rounded-md bg-background/50 px-2.5 py-1 text-[11px] text-muted-foreground"
-                                  >
-                                    <span className="font-semibold text-foreground">
-                                      {preferenceCard.court.name || "Quadra sem nome"}:
-                                    </span>{" "}
-                                    {preferenceCard.planned_sport_summaries.length > 0
-                                      ? preferenceCard.planned_sport_summaries
-                                          .map(
-                                            (summary) =>
-                                              `${summary.sport_name}: ${summary.planned_match_count} ${
-                                                summary.planned_match_count == 1 ? "jogo" : "jogos"
-                                              }`,
-                                          )
-                                          .join(" • ")
-                                      : "Sem jogos definidos"}
-                                  </span>
-                                ))}
-                              </div>
-
                               <div className="flex items-center gap-3 text-right text-xs font-medium text-muted-foreground">
                                 <div>
                                   <p
@@ -12792,16 +12769,14 @@ export function AdminChampionshipBracketPage({
                             </button>
 
                             {isCourtPreferenceDayExpanded ? (
-                              <div id={courtPreferenceDayContentId} className="overflow-x-auto">
-                                <div
-                                  className="grid min-w-full gap-px bg-border/40"
-                                  style={{
-                                    gridTemplateColumns: `repeat(${Math.max(
-                                      preferenceRow.court_cards.length,
-                                      1,
-                                    )}, minmax(280px, 1fr))`,
-                                  }}
-                                >
+                              <div
+                                id={courtPreferenceDayContentId}
+                                role="region"
+                                aria-label={`Quadras de ${preferenceRow.day_label}`}
+                                tabIndex={0}
+                                className="overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              >
+                                <div className="flex w-full gap-px bg-border/40">
                                   {preferenceRow.court_cards.map((preferenceCard) => {
                                     const currentPreference = preferenceCard.court.sport_preference;
                                     const scheduleDayDate =
@@ -12921,13 +12896,7 @@ export function AdminChampionshipBracketPage({
                                       shouldShowPreferredDivisionField,
                                     ].filter(Boolean).length;
                                     const preferenceFieldSpanClass =
-                                      preferenceFieldCount <= 1
-                                        ? "xl:col-span-12"
-                                        : preferenceFieldCount == 2
-                                          ? "xl:col-span-6"
-                                          : preferenceFieldCount == 3
-                                            ? "xl:col-span-4"
-                                            : "xl:col-span-3";
+                                      preferenceFieldCount <= 1 ? "md:col-span-2" : "";
                                     const compactCompetitionBalanceItems =
                                       activePlannedSportOptions.flatMap((sportOption) =>
                                         sportOption.competition_keys
@@ -12980,7 +12949,12 @@ export function AdminChampionshipBracketPage({
                                     return (
                                       <div
                                         key={preferenceCard.key}
-                                        className="min-w-0 bg-background/60 p-5"
+                                        className={cn(
+                                          "min-w-[min(100%,400px)] shrink-0 bg-background/60 p-5",
+                                          preferenceRow.court_cards.length > 1
+                                            ? "w-full lg:w-[calc(50%-0.5px)]"
+                                            : "w-full",
+                                        )}
                                       >
                                         <div className="flex items-start justify-between gap-4 border-b border-border/30 pb-4">
                                           <div className="min-w-0">
@@ -13405,7 +13379,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             </div>
                                           </div>
 
-                                          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-12">
+                                          <div className="grid items-start gap-4 md:grid-cols-2">
                                             {shouldShowPreferredSportField ? (
                                               <div
                                                 className={cn(
@@ -13699,7 +13673,7 @@ A quantidade inclui todos os naipes da modalidade. Finais programadas manualment
                                             ) : null}
 
                                             {canAlternateNaipeAfterExclusiveKnockoutPhase ? (
-                                              <div className="flex min-w-0 items-center gap-2 self-end pt-1 xl:col-span-12">
+                                              <div className="flex min-w-0 items-center gap-2 self-end pt-1 md:col-span-2">
                                                 <Checkbox
                                                   id={`alternate-naipe-after-exclusive-knockout-${preferenceCard.key}`}
                                                   checked={
