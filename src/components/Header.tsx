@@ -1,19 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { AnnouncementRichText } from "@/components/AnnouncementRichText";
 import { useAuth } from "@/hooks/useAuth";
 import { usePublicAccessSettings } from "@/hooks/usePublicAccessSettings";
-import {
-  resolveAnnouncementContent,
-  resolveAnnouncementType,
-} from "@/lib/announcement";
+import { resolveAnnouncementContent, resolveAnnouncementType } from "@/lib/announcement";
 import { AppRoutePath } from "@/lib/enums";
 import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 import { resolveIsPublicRouteBlocked } from "@/lib/publicAccess";
@@ -42,8 +32,7 @@ export function Header() {
   const [showActiveIndicator, setShowActiveIndicator] = useState(
     previousHeaderIndicatorState != null,
   );
-  const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] =
-    useState(false);
+  const [isAnnouncementOverflowing, setIsAnnouncementOverflowing] = useState(false);
 
   const announcementContent = useMemo(
     () =>
@@ -51,14 +40,9 @@ export function Header() {
         publicAccessSettings.announcement_content,
         publicAccessSettings.announcement_message,
       ),
-    [
-      publicAccessSettings.announcement_content,
-      publicAccessSettings.announcement_message,
-    ],
+    [publicAccessSettings.announcement_content, publicAccessSettings.announcement_message],
   );
-  const announcementType = resolveAnnouncementType(
-    publicAccessSettings.announcement_type,
-  );
+  const announcementType = resolveAnnouncementType(publicAccessSettings.announcement_type);
 
   const activeRoutePath = useMemo(() => {
     return (
@@ -103,8 +87,7 @@ export function Header() {
     }
 
     setIsAnnouncementOverflowing(
-      announcementMeasureRef.current.scrollWidth >
-        announcementViewportRef.current.clientWidth + 1,
+      announcementMeasureRef.current.scrollWidth > announcementViewportRef.current.clientWidth + 1,
     );
   }, [announcementContent]);
 
@@ -129,8 +112,7 @@ export function Header() {
     }
 
     window.addEventListener("resize", updateAnnouncementOverflow);
-    return () =>
-      window.removeEventListener("resize", updateAnnouncementOverflow);
+    return () => window.removeEventListener("resize", updateAnnouncementOverflow);
   }, [announcementContent, updateAnnouncementOverflow]);
 
   return (
@@ -149,6 +131,7 @@ export function Header() {
           </Link>
 
           <nav
+            aria-label="Navegação principal"
             ref={navRef}
             className="app-pill-container app-header-nav-container app-scrollbar-hidden relative ml-auto flex max-w-[calc(100%-3.5rem)] min-w-0 items-center gap-0 overflow-x-auto rounded-xl"
           >
@@ -162,54 +145,53 @@ export function Header() {
               }}
             />
 
-            {HEADER_APP_NAVIGATION_ITEMS.map(
-              ({ routePath, label, icon: Icon }) =>
-                (() => {
-                  const isDisabledByMaintenance = resolveIsPublicRouteBlocked(
-                    publicAccessSettings,
-                    routePath,
-                  );
-                  const shouldBlockLinkByMaintenance =
-                    !authLoading && !user && isDisabledByMaintenance;
+            {HEADER_APP_NAVIGATION_ITEMS.map(({ routePath, label, icon: Icon }) =>
+              (() => {
+                const isDisabledByMaintenance = resolveIsPublicRouteBlocked(
+                  publicAccessSettings,
+                  routePath,
+                );
+                const shouldBlockLinkByMaintenance =
+                  !authLoading && !user && isDisabledByMaintenance;
 
-                  if (shouldBlockLinkByMaintenance) {
-                    linkByPathRef.current[routePath] = null;
-
-                    return (
-                      <button
-                        key={routePath}
-                        type="button"
-                        disabled
-                        title="Tela temporariamente indisponível por manutenção"
-                        className="app-pill-option relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
-                      >
-                        <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
-                        <span className="hidden sm:inline">{label}</span>
-                      </button>
-                    );
-                  }
+                if (shouldBlockLinkByMaintenance) {
+                  linkByPathRef.current[routePath] = null;
 
                   return (
-                    <Link
+                    <button
+                      aria-label={label}
                       key={routePath}
-                      to={routePath}
-                      aria-current={
-                        location.pathname == routePath ? "page" : undefined
-                      }
-                      ref={(linkElement) => {
-                        linkByPathRef.current[routePath] = linkElement;
-                      }}
-                      className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
-                        location.pathname == routePath
-                          ? "text-primary-foreground font-bold"
-                          : "text-muted-foreground"
-                      }`}
+                      type="button"
+                      disabled
+                      title="Tela temporariamente indisponível por manutenção"
+                      className="app-pill-option relative z-10 flex min-h-11 shrink-0 cursor-not-allowed items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium text-muted-foreground/70 dark:text-muted-foreground/30 first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2"
                     >
                       <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
                       <span className="hidden sm:inline">{label}</span>
-                    </Link>
+                    </button>
                   );
-                })(),
+                }
+
+                return (
+                  <Link
+                    aria-label={label}
+                    key={routePath}
+                    to={routePath}
+                    aria-current={location.pathname == routePath ? "page" : undefined}
+                    ref={(linkElement) => {
+                      linkByPathRef.current[routePath] = linkElement;
+                    }}
+                    className={`app-pill-option relative z-10 flex min-h-11 shrink-0 items-center gap-1.5 rounded-none px-3 py-2.5 text-sm font-medium first:rounded-l-xl last:rounded-r-xl sm:min-h-10 sm:py-2 ${
+                      location.pathname == routePath
+                        ? "text-primary-foreground font-bold"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </Link>
+                );
+              })(),
             )}
           </nav>
         </div>
@@ -227,9 +209,9 @@ export function Header() {
             >
               <span
                 ref={announcementMeasureRef}
-              className="app-announcement-measure"
-              aria-hidden="true"
-            >
+                className="app-announcement-measure"
+                aria-hidden="true"
+              >
                 <span className="app-announcement-text">
                   <AnnouncementRichText content={announcementContent} />
                 </span>

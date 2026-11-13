@@ -1,8 +1,9 @@
 import { MemoryRouter } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Header } from "@/components/Header";
 import { DEFAULT_PUBLIC_ACCESS_SETTINGS } from "@/lib/publicAccess";
+import { HEADER_APP_NAVIGATION_ITEMS } from "@/lib/navigation";
 
 const mockUseAuth = vi.fn();
 const mockUsePublicAccessSettings = vi.fn();
@@ -60,24 +61,42 @@ describe("Header", () => {
     vi.unstubAllGlobals();
   });
 
+  it("oferece nomes acessíveis para todos os links da navegação em telas pequenas", () => {
+    renderHeader();
+
+    const navigation = screen.getByRole("navigation", { name: "Navegação principal" });
+    const links = within(navigation).getAllByRole("link");
+    expect(links).toHaveLength(HEADER_APP_NAVIGATION_ITEMS.length);
+
+    for (const item of HEADER_APP_NAVIGATION_ITEMS) {
+      expect(within(navigation).getByRole("link", { name: item.label })).toHaveAttribute(
+        "aria-label",
+        item.label,
+      );
+    }
+  });
+
   it("reserva o afastamento visual sem deslocar o header sticky", () => {
     const { container } = renderHeader();
 
     expect(container.querySelector("header")).toHaveClass("top-0", "pt-4");
   });
 
-  it.each([null, "", "   "])("não renderiza banner quando announcement_message é %p", (announcementMessage) => {
-    mockUsePublicAccessSettings.mockReturnValue({
-      publicAccessSettings: {
-        ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
-        announcement_message: announcementMessage,
-      },
-    });
+  it.each([null, "", "   "])(
+    "não renderiza banner quando announcement_message é %p",
+    (announcementMessage) => {
+      mockUsePublicAccessSettings.mockReturnValue({
+        publicAccessSettings: {
+          ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
+          announcement_message: announcementMessage,
+        },
+      });
 
-    renderHeader();
+      renderHeader();
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    },
+  );
 
   it("renderiza o banner em modo estático quando a mensagem cabe na largura disponível", async () => {
     mockAnnouncementDimensions(320, 140);
@@ -93,7 +112,10 @@ describe("Header", () => {
     expect(screen.getAllByText("Novo regulamento disponível.").length).toBeGreaterThan(0);
 
     await waitFor(() => {
-      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute("data-overflowing", "false");
+      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute(
+        "data-overflowing",
+        "false",
+      );
     });
 
     expect(document.querySelector(".app-announcement-marquee-track")).not.toBeInTheDocument();
@@ -104,19 +126,25 @@ describe("Header", () => {
     mockUsePublicAccessSettings.mockReturnValue({
       publicAccessSettings: {
         ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
-        announcement_message: "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
+        announcement_message:
+          "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
       },
     });
 
     renderHeader();
 
     await waitFor(() => {
-      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute("data-overflowing", "true");
+      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute(
+        "data-overflowing",
+        "true",
+      );
     });
 
     expect(document.querySelector(".app-announcement-marquee-track")).toBeInTheDocument();
     expect(
-      screen.getAllByText("Aviso importante com texto longo para validar o comportamento rolando em linha única.").length,
+      screen.getAllByText(
+        "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
+      ).length,
     ).toBeGreaterThan(1);
   });
 
