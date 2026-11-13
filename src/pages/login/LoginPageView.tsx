@@ -134,6 +134,7 @@ export function LoginPageView({
 
           <form onSubmit={onSubmit} className="space-y-4">
             <Input
+              aria-label="Usuário"
               type="text"
               placeholder="Usuário"
               value={loginIdentifier}
@@ -149,6 +150,7 @@ export function LoginPageView({
 
             {loginStage == AdminLoginStage.PASSWORD ? (
               <Input
+                aria-label="Senha"
                 type="password"
                 placeholder="Senha"
                 value={password}
@@ -162,6 +164,7 @@ export function LoginPageView({
             {loginStage == AdminLoginStage.PASSWORD_SETUP ? (
               <div className="space-y-4">
                 <Input
+                  aria-label="Nova senha"
                   type="password"
                   placeholder="Nova senha"
                   value={newPassword}
@@ -171,6 +174,7 @@ export function LoginPageView({
                   autoComplete="new-password"
                 />
                 <Input
+                  aria-label="Confirmar nova senha"
                   type="password"
                   placeholder="Confirmar nova senha"
                   value={confirmPassword}
@@ -182,11 +186,20 @@ export function LoginPageView({
               </div>
             ) : null}
 
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
             <div className="space-y-2">
-              <Button type="submit" className="w-full" disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : resolveSubmitLabel(loginStage, submitting)}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={submitting}
+                aria-label={submitting ? "Enviando..." : undefined}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  resolveSubmitLabel(loginStage, submitting)
+                )}
               </Button>
 
               {loginStage != AdminLoginStage.LOGIN_IDENTIFIER ? (
