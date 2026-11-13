@@ -82,18 +82,21 @@ describe("Header", () => {
     expect(container.querySelector("header")).toHaveClass("top-0", "pt-4");
   });
 
-  it.each([null, "", "   "])("não renderiza banner quando announcement_message é %p", (announcementMessage) => {
-    mockUsePublicAccessSettings.mockReturnValue({
-      publicAccessSettings: {
-        ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
-        announcement_message: announcementMessage,
-      },
-    });
+  it.each([null, "", "   "])(
+    "não renderiza banner quando announcement_message é %p",
+    (announcementMessage) => {
+      mockUsePublicAccessSettings.mockReturnValue({
+        publicAccessSettings: {
+          ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
+          announcement_message: announcementMessage,
+        },
+      });
 
-    renderHeader();
+      renderHeader();
 
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-  });
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    },
+  );
 
   it("renderiza o banner em modo estático quando a mensagem cabe na largura disponível", async () => {
     mockAnnouncementDimensions(320, 140);
@@ -109,7 +112,10 @@ describe("Header", () => {
     expect(screen.getAllByText("Novo regulamento disponível.").length).toBeGreaterThan(0);
 
     await waitFor(() => {
-      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute("data-overflowing", "false");
+      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute(
+        "data-overflowing",
+        "false",
+      );
     });
 
     expect(document.querySelector(".app-announcement-marquee-track")).not.toBeInTheDocument();
@@ -120,19 +126,25 @@ describe("Header", () => {
     mockUsePublicAccessSettings.mockReturnValue({
       publicAccessSettings: {
         ...DEFAULT_PUBLIC_ACCESS_SETTINGS,
-        announcement_message: "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
+        announcement_message:
+          "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
       },
     });
 
     renderHeader();
 
     await waitFor(() => {
-      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute("data-overflowing", "true");
+      expect(document.querySelector(".app-announcement-viewport")).toHaveAttribute(
+        "data-overflowing",
+        "true",
+      );
     });
 
     expect(document.querySelector(".app-announcement-marquee-track")).toBeInTheDocument();
     expect(
-      screen.getAllByText("Aviso importante com texto longo para validar o comportamento rolando em linha única.").length,
+      screen.getAllByText(
+        "Aviso importante com texto longo para validar o comportamento rolando em linha única.",
+      ).length,
     ).toBeGreaterThan(1);
   });
 
